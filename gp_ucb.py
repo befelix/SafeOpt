@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 
 class GaussianProcessUCB:
-    """A class to optimize a function using GP-UCB.
+    """A class to maximize a function using GP-UCB.
 
     Parameters
     ---------
@@ -32,6 +32,19 @@ class GaussianProcessUCB:
         self.x_max = None
         self.y_max = -np.inf
 
+    def plot(self):
+        """Plot the current state of the optimization."""
+        if self.kernel.input_dim > 1:
+            return None
+        if self.gp is None:
+            x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
+            K = self.kernel.Kdiag(x[:, None])
+            std_dev = np.sqrt(K)
+            plt.fill_between(x, -std_dev, std_dev, facecolor='blue', alpha=0.5)
+            plt.show()
+        else:
+            self.gp.plot()
+
     def acquisition_function(self, x):
         """Computes -value and -gradient of the acquisition function at x."""
         beta = 2.
@@ -42,7 +55,10 @@ class GaussianProcessUCB:
 
         gradient = dmu + 0.5 * beta * (var ** -0.5) * dvar.T
 
-        return -value.squeeze(), -gradient.squeeze()
+        if x.shape[1] > 1:
+            gradient = gradient.squeeze()
+
+        return -value.squeeze(), -gradient
 
     def compute_new_query_point(self):
         """Computes a new point at which to evaluate the function"""
@@ -54,7 +70,7 @@ class GaussianProcessUCB:
 
         for i in range(50):
 
-            x0 = [np.random.uniform(b[0], b[1]) for b in self.bounds]
+            x0 = np.array([np.random.uniform(b[0], b[1]) for b in self.bounds])
 
             res = minimize(self.acquisition_function, x0,
                            jac=True, bounds=self.bounds, method='L-BFGS-B')
@@ -80,28 +96,64 @@ class GaussianProcessUCB:
         # if len(self.gp.Y) >= 5:
         #     self.gp.optimize()
 
-
     def optimize(self):
         """Run one step of bayesian optimization."""
         x = self.compute_new_query_point()
-        value = self.function(x) + 0.05 * np.random.randn()
+        value = self.function(x)
         self.add_new_data_point(x, value)
 
         if value > self.y_max:
             self.y_max = value
             self.x_max = x
 
+def get_hyperparameters(function, kernel, bounds, N):
+    """
+    Optimize for hyperparameters by sampling a function from the uniform grid.
+
+    Parameters
+    ----------
+    function: method
+        Returns the function values, needs to be vectorized to accept 2-D
+        arrays as inputs for each variable
+    kernel: instance of GPy.kern.*
+    bounds: array_like of tuples
+        Each tuple consists of the upper and lower bounds of the variable
+    N: integer
+        Number of sample points per dimension, total = N ** len(bounds)
+    """
+    num_vars = len(bounds)
+
+    test_vars = np.empty((num_vars, N), dtype=np.float)
+    for row in range(num_vars):
+        test_vars[row, :] = np.linspace(bounds[row][0], bounds[row][1], N)
+
+    grid = np.array([x.ravel() for x in np.meshgrid(*test_vars)])
+    values = function(*grid)
+
+    gp = GPy.models.GPRegression(grid.T, values[:, None], kernel)
+    gp.optimize()
+    return gp
+
 def f(x):
-    return 2 * abs(x)
+    x = np.asarray(x)
+    return 2 * np.abs(x) + 0.05 * np.random.randn(*x.shape)
 
-kernel = GPy.kern.RBF(input_dim=2, variance=1000., lengthscale=1.0)
-a = GaussianProcessUCB(kernel, f, [(-2, 0), (-2, 0)])
+kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
+kernel = get_hyperparameters(f,  kernel, [(-1, 1)], 50).kern
 
-for i in range(20):
+a = GaussianProcessUCB(kernel, f, [(-2, 0)])
+
+for i in range(10):
     a.optimize()
 
 a.gp.plot()
-print(a.gp)
 
-print(a.x_max, a.y_max)
+print(a.gp)
+# a.plot()
+# a.optimize()
+#
+# # a.gp.plot()
+# print(a.gp)
+#
+# print(a.x_max, a.y_max)
 
