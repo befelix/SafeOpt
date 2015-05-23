@@ -56,7 +56,7 @@ class GaussianProcessUCB:
 
     def acquisition_function(self, x):
         """Computes -value and -gradient of the acquisition function at x."""
-        beta = 2.
+        beta = 3.
         x = np.atleast_2d(x)
         mu, var = self.gp.predict(x)
         dmu, dvar = self.gp.predictive_gradients(x)
@@ -134,6 +134,11 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     kernel: instance of GPy.kern.*
     likelihood: instance of GPy.likelihoods.*
         Defaults to GPy.likelihoods.gaussian.Gaussian()
+
+    Returns
+    -------
+    kernel: instance of GPy.kern.*
+    likelihood: instance of GPy.likelihoods.*
     """
     num_vars = len(bounds)
 
@@ -155,30 +160,32 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
                      inference_method=inference_method,
                      likelihood=likelihood)
     gp.optimize()
-    return gp
+    return gp.kern, gp.likelihood
 
 
 if __name__ == '__main__':
 
+    noise_std_dev = 0.05
+
     # Optimization function
-    def f(x):
+    def fun(x):
         x = np.asarray(x)
-        return 2 * np.abs(x) + 0.05 * np.random.randn(*x.shape)
+        return x ** 2 + noise_std_dev * np.random.randn(*x.shape)
 
     # Set fixed Gaussian measurement noise
-    likelihood = GPy.likelihoods.gaussian.Gaussian(variance=0.05**2)
+    likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
     likelihood.constrain_fixed()
 
     # Define Kernel
     kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
 
     # Optimize hyperparameters
-    tmp = get_hyperparameters(f, [(-1, 1)], 50, kernel, likelihood)
+    bounds = [(-0.9, 1)]
+    kernel, likelihood = get_hyperparameters(fun, bounds, 50,
+                                             kernel, likelihood)
 
     # Init UCB algorithm
-    kernel = tmp.kern
-    likelihood = tmp.likelihood
-    gp_ucb = GaussianProcessUCB(f, [(-2, 0)], kernel, likelihood)
+    gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
 
     # Optimize
     for i in range(10):
@@ -187,4 +194,5 @@ if __name__ == '__main__':
     # Show results
     gp_ucb.gp.plot()
     print(gp_ucb.gp)
-    print(gp_ucb.x_max, gp_ucb.y_max)
+    print('maximum at x={0} with value of y={1}'.format(gp_ucb.x_max,
+                                                        gp_ucb.y_max))
