@@ -34,6 +34,8 @@ class GaussianProcessUCB:
         self.x_max = None
         self.y_max = -np.inf
 
+        self.maximize = 1
+
     @property
     def likelihood(self):
         if self.gp is None:
@@ -111,7 +113,7 @@ class GaussianProcessUCB:
             return np.mean(self.bounds, axis=1)
 
         num_vars = len(self.bounds)
-        num_samples = [1000] * num_vars
+        num_samples = [200] * num_vars
 
         # Create linearly spaced test inputs
         inputs = [np.linspace(b[0], b[1], n) for b, n in zip(self.bounds,
@@ -147,12 +149,12 @@ class GaussianProcessUCB:
     def optimize(self):
         """Run one step of bayesian optimization."""
         x = self.compute_new_query_point_discrete()
-        value = self.function(x)
+        value = self.function(*x)
         self.add_new_data_point(x, value)
 
         if value > self.y_max:
             self.y_max = value
-            self.x_max = x
+            self.x_max = np.atleast_1d(x)
 
 
 def get_hyperparameters(function, bounds, num_samples, kernel,
@@ -241,29 +243,31 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
 if __name__ == '__main__':
 
     noise_std_dev = 0.05
-    bounds = [(0, 10)]
+    bounds = [(-1.1, 1), (-1, 0.9)]
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
     likelihood.constrain_fixed()
 
     # Define Kernel
-    kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
+    kernel = GPy.kern.RBF(input_dim=len(bounds), variance=2., lengthscale=1.0,
+                          ARD=True)
 
     # Optimization function
-    # def fun(x):
-    #     x = np.asarray(x)
-    #     return x ** 2 + noise_std_dev * np.random.randn(*x.shape)
+    def fun(x, y):
+        x = np.asarray(x)
+        y = np.asarray(y)
+        return x ** 2 + y ** 2 + noise_std_dev * np.random.randn(*x.shape)
 
     # Optimize hyperparameters
-    # kernel, likelihood = get_hyperparameters(fun, bounds, 100,
-    #                                          kernel, likelihood)
-    #
-    # Init UCB algorithm
+    kernel, likelihood = get_hyperparameters(fun, bounds, 20,
+                                             kernel, likelihood)
+    print('optimized hyperparameters')
 
     # Sample a function from the GP
-    fun = sample_gp_function(kernel, bounds, noise_std_dev, 100)
+    # fun = sample_gp_function(kernel, bounds, noise_std_dev, 100)
 
+    # Init UCB algorithm
     gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
 
     # Optimize
@@ -273,5 +277,9 @@ if __name__ == '__main__':
     gp_ucb.plot()
 
     # Show results
-    print('maximum at x={0} with value of y={1}'.format(gp_ucb.x_max,
-                                                        gp_ucb.y_max))
+    mean, var = gp_ucb.gp.predict(np.atleast_2d(gp_ucb.x_max))
+    mean = mean.squeeze()
+    deviation = 2 * np.sqrt(var.squeeze())
+    print('maximum at x={0} with value of y={1} +- {2}'.format(gp_ucb.x_max,
+                                                               mean,
+                                                               deviation))
