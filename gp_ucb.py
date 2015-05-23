@@ -22,15 +22,24 @@ class GaussianProcessUCB:
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
 
     """
-    def __init__(self, kernel, function, bounds):
+    def __init__(self, function, bounds, kernel, likelihood):
         self.kernel = kernel
         self.gp = None
 
         self.bounds = bounds
         self.function = function
 
+        self._likelihood = likelihood
+
         self.x_max = None
         self.y_max = -np.inf
+
+    @property
+    def likelihood(self):
+        if self.gp is None:
+            return self._likelihood
+        else:
+            return self.gp.likelihood
 
     def plot(self):
         """Plot the current state of the optimization."""
@@ -68,8 +77,8 @@ class GaussianProcessUCB:
         x_max = 0.5
         v_max = -np.inf
 
+        # TODO: This needs to be less cured
         for i in range(50):
-
             x0 = np.array([np.random.uniform(b[0], b[1]) for b in self.bounds])
 
             res = minimize(self.acquisition_function, x0,
@@ -86,9 +95,11 @@ class GaussianProcessUCB:
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
         if self.gp is None:
-            self.gp = GPy.models.GPRegression(x, y, self.kernel)
-            self.gp.likelihood.variance = 0.05**2
-            self.gp.likelihood.variance.constrain_fixed(0.05**2)
+            inference_method = GPy.inference.latent_function_inference.\
+                exact_gaussian_inference.ExactGaussianInference()
+            self.gp = GPy.core.GP(X=x,Y=y, kernel=self.kernel,
+                                  inference_method=inference_method,
+                                  likelihood=self.likelihood)
         else:
             self.gp.set_XY(np.vstack([self.gp.X, x]),
                            np.vstack([self.gp.Y, y]))
@@ -106,7 +117,8 @@ class GaussianProcessUCB:
             self.y_max = value
             self.x_max = x
 
-def get_hyperparameters(function, kernel, bounds, N):
+def get_hyperparameters(function, bounds, num_samples, kernel,
+                        likelihood=GPy.likelihoods.gaussian.Gaussian()):
     """
     Optimize for hyperparameters by sampling a function from the uniform grid.
 
@@ -115,45 +127,64 @@ def get_hyperparameters(function, kernel, bounds, N):
     function: method
         Returns the function values, needs to be vectorized to accept 2-D
         arrays as inputs for each variable
-    kernel: instance of GPy.kern.*
     bounds: array_like of tuples
         Each tuple consists of the upper and lower bounds of the variable
     N: integer
         Number of sample points per dimension, total = N ** len(bounds)
+    kernel: instance of GPy.kern.*
+    likelihood: instance of GPy.likelihoods.*
+        Defaults to GPy.likelihoods.gaussian.Gaussian()
     """
     num_vars = len(bounds)
 
-    test_vars = np.empty((num_vars, N), dtype=np.float)
+    # linearly space test inputs
+    test_vars = np.empty((num_vars, num_samples), dtype=np.float)
     for row in range(num_vars):
-        test_vars[row, :] = np.linspace(bounds[row][0], bounds[row][1], N)
+        test_vars[row, :] = np.linspace(bounds[row][0], bounds[row][1],
+                                        num_samples)
 
-    grid = np.array([x.ravel() for x in np.meshgrid(*test_vars)])
-    values = function(*grid)
+    # Store test inputs in the appropriate form
+    inputs = np.array([x.ravel() for x in np.meshgrid(*test_vars)])
+    output = function(*inputs)
 
-    gp = GPy.models.GPRegression(grid.T, values[:, None], kernel)
+    inference_method = GPy.inference.latent_function_inference.\
+        exact_gaussian_inference.ExactGaussianInference()
+
+    gp = GPy.core.GP(X=inputs.T, Y=output[:, None],
+                     kernel=kernel,
+                     inference_method=inference_method,
+                     likelihood=likelihood)
     gp.optimize()
     return gp
 
-def f(x):
-    x = np.asarray(x)
-    return 2 * np.abs(x) + 0.05 * np.random.randn(*x.shape)
 
-kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
-kernel = get_hyperparameters(f,  kernel, [(-1, 1)], 50).kern
+if __name__ == '__main__':
 
-a = GaussianProcessUCB(kernel, f, [(-2, 0)])
+    # Optimization function
+    def f(x):
+        x = np.asarray(x)
+        return 2 * np.abs(x) + 0.05 * np.random.randn(*x.shape)
 
-for i in range(10):
-    a.optimize()
+    # Set fixed Gaussian measurement noise
+    likelihood = GPy.likelihoods.gaussian.Gaussian(variance=0.05**2)
+    likelihood.constrain_fixed()
 
-a.gp.plot()
+    # Define Kernel
+    kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
 
-print(a.gp)
-# a.plot()
-# a.optimize()
-#
-# # a.gp.plot()
-# print(a.gp)
-#
-# print(a.x_max, a.y_max)
+    # Optimize hyperparameters
+    tmp = get_hyperparameters(f, [(-1, 1)], 50, kernel, likelihood)
 
+    # Init UCB algorithm
+    kernel = tmp.kern
+    likelihood = tmp.likelihood
+    gp_ucb = GaussianProcessUCB(f, [(-2, 0)], kernel, likelihood)
+
+    # Optimize
+    for i in range(10):
+        gp_ucb.optimize()
+
+    # Show results
+    gp_ucb.gp.plot()
+    print(gp_ucb.gp)
+    print(gp_ucb.x_max, gp_ucb.y_max)
