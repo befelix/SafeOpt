@@ -130,12 +130,14 @@ class GaussianProcessUCB:
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
         if self.gp is None:
+            # Initialize GP
             inference_method = GPy.inference.latent_function_inference.\
                 exact_gaussian_inference.ExactGaussianInference()
             self.gp = GPy.core.GP(X=x,Y=y, kernel=self.kernel,
                                   inference_method=inference_method,
                                   likelihood=self.likelihood)
         else:
+            # Add data to GP
             self.gp.set_XY(np.vstack([self.gp.X, x]),
                            np.vstack([self.gp.Y, y]))
 
@@ -151,6 +153,7 @@ class GaussianProcessUCB:
         if value > self.y_max:
             self.y_max = value
             self.x_max = x
+
 
 def get_hyperparameters(function, bounds, num_samples, kernel,
                         likelihood=GPy.likelihoods.gaussian.Gaussian()):
@@ -198,14 +201,47 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     return gp.kern, gp.likelihood
 
 
+def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
+    """
+    Sample a function from a gp with corresponding kernel within its bounds.
+
+    Parameters
+    ----------
+    kernel: instance of GPy.kern.*
+    bounds: list of tuples
+        [(x1_min, x1_max), (x2_min, x2_max), ...]
+
+    Returns
+    -------
+    function: object
+        A function that takes as inputs new locations x to be evaluated and
+        returns the corresponding noise function values
+    """
+    from scipy.interpolate import griddata
+    num_vars = len(bounds)
+    num_samples = [num_samples] * num_vars
+
+    # Create linearly spaced test inputs
+    inputs = [np.linspace(b[0], b[1], n) for b, n in zip(bounds, num_samples)]
+
+    # Convert to 2-D array
+    inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
+
+    values = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
+                                           kernel.K(inputs))
+
+    def evaluate_gp_function(*x):
+        x = np.asarray(x)
+        return griddata(inputs, values, x, method='linear') + \
+               noise_std_dev * np.random.randn(x.shape[0], 1)
+
+    return evaluate_gp_function
+
+
 if __name__ == '__main__':
 
     noise_std_dev = 0.05
-
-    # Optimization function
-    def fun(x):
-        x = np.asarray(x)
-        return x ** 2 + noise_std_dev * np.random.randn(*x.shape)
+    bounds = [(0, 10)]
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
@@ -214,21 +250,28 @@ if __name__ == '__main__':
     # Define Kernel
     kernel = GPy.kern.RBF(input_dim=1, variance=2., lengthscale=1.0, ARD=True)
 
-    # Optimize hyperparameters
-    bounds = [(-0.9, 1)]
-    kernel, likelihood = get_hyperparameters(fun, bounds, 100,
-                                             kernel, likelihood)
+    # Optimization function
+    # def fun(x):
+    #     x = np.asarray(x)
+    #     return x ** 2 + noise_std_dev * np.random.randn(*x.shape)
 
+    # Optimize hyperparameters
+    # kernel, likelihood = get_hyperparameters(fun, bounds, 100,
+    #                                          kernel, likelihood)
+    #
     # Init UCB algorithm
+
+    # Sample a function from the GP
+    fun = sample_gp_function(kernel, bounds, noise_std_dev, 100)
+
     gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
 
     # Optimize
-    for i in range(7):
+    for i in range(50):
         gp_ucb.optimize()
-        gp_ucb.plot()
-        a = raw_input('wait')
+        # a = raw_input('wait')
+    gp_ucb.plot()
 
     # Show results
-    print(gp_ucb.gp)
     print('maximum at x={0} with value of y={1}'.format(gp_ucb.x_max,
                                                         gp_ucb.y_max))
