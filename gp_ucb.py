@@ -49,10 +49,13 @@ class GaussianProcessUCB:
             x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
             K = self.kernel.Kdiag(x[:, None])
             std_dev = np.sqrt(K)
-            plt.fill_between(x, -std_dev, std_dev, facecolor='blue', alpha=0.5)
+            plt.fill_between(x, -std_dev, std_dev, facecolor='blue',
+                             alpha=0.5)
             plt.show()
         else:
-            self.gp.plot()
+            plt.close()
+            self.gp.plot(plot_limits=np.array(self.bounds).squeeze())
+            plt.show()
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -107,16 +110,15 @@ class GaussianProcessUCB:
         if self.gp is None:
             return np.mean(self.bounds, axis=1)
 
-        num_samples = 1000
         num_vars = len(self.bounds)
+        num_samples = [1000] * num_vars
 
-        # Create test inputs
-        test_vars = np.empty((num_vars, num_samples), dtype=np.float)
-        for row in range(num_vars):
-            test_vars[row, :] = np.linspace(self.bounds[row][0],
-                                            self.bounds[row][1],
-                                            num_samples)
-        inputs = np.array([x.ravel() for x in np.meshgrid(*test_vars)]).T
+        # Create linearly spaced test inputs
+        inputs = [np.linspace(b[0], b[1], n) for b, n in zip(self.bounds,
+                                                             num_samples)]
+
+        # Convert to 2-D array
+        inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
 
         # Evaluate acquisition function
         values = self.acquisition_function(inputs, jac=False)
@@ -221,11 +223,12 @@ if __name__ == '__main__':
     gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
 
     # Optimize
-    for i in range(10):
+    for i in range(7):
         gp_ucb.optimize()
+        gp_ucb.plot()
+        a = raw_input('wait')
 
     # Show results
-    gp_ucb.gp.plot()
     print(gp_ucb.gp)
     print('maximum at x={0} with value of y={1}'.format(gp_ucb.x_max,
                                                         gp_ucb.y_max))
