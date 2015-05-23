@@ -54,14 +54,17 @@ class GaussianProcessUCB:
         else:
             self.gp.plot()
 
-    def acquisition_function(self, x):
+    def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
         beta = 3.
         x = np.atleast_2d(x)
-        mu, var = self.gp.predict(x)
-        dmu, dvar = self.gp.predictive_gradients(x)
-        value = mu + beta * np.sqrt(var)
 
+        mu, var = self.gp.predict(x)
+        value = mu + beta * np.sqrt(var)
+        if not jac:
+            return -value.squeeze()
+
+        dmu, dvar = self.gp.predictive_gradients(x)
         gradient = dmu + 0.5 * beta * (var ** -0.5) * dvar.T
 
         if x.shape[1] > 1:
@@ -70,7 +73,9 @@ class GaussianProcessUCB:
         return -value.squeeze(), -gradient
 
     def compute_new_query_point(self):
-        """Computes a new point at which to evaluate the function"""
+        """Computes a new point at which to evaluate the function."""
+        # GPy is stupid in that it can only be initialized with data,
+        # so just pick a random starting value in the middle
         if self.gp is None:
             return np.mean(self.bounds, axis=1)
 
@@ -89,6 +94,34 @@ class GaussianProcessUCB:
                 v_max = -res.fun
                 x_max = res.x
         return x_max
+
+    def compute_new_query_point_discrete(self):
+        """
+        Computes a new point at which to evaluate the function.
+
+        The algorithm relies on discretizing all possible values and
+        evaluating all of them.
+        """
+        # GPy is stupid in that it can only be initialized with data,
+        # so just pick a random starting value in the middle
+        if self.gp is None:
+            return np.mean(self.bounds, axis=1)
+
+        num_samples = 1000
+        num_vars = len(self.bounds)
+
+        # Create test inputs
+        test_vars = np.empty((num_vars, num_samples), dtype=np.float)
+        for row in range(num_vars):
+            test_vars[row, :] = np.linspace(self.bounds[row][0],
+                                            self.bounds[row][1],
+                                            num_samples)
+        inputs = np.array([x.ravel() for x in np.meshgrid(*test_vars)]).T
+
+        # Evaluate acquisition function
+        values = self.acquisition_function(inputs, jac=False)
+
+        return inputs[np.argmin(values), :]
 
     def add_new_data_point(self, x, y):
         """Add a new function observation to the gp"""
@@ -109,7 +142,7 @@ class GaussianProcessUCB:
 
     def optimize(self):
         """Run one step of bayesian optimization."""
-        x = self.compute_new_query_point()
+        x = self.compute_new_query_point_discrete()
         value = self.function(x)
         self.add_new_data_point(x, value)
 
@@ -181,7 +214,7 @@ if __name__ == '__main__':
 
     # Optimize hyperparameters
     bounds = [(-0.9, 1)]
-    kernel, likelihood = get_hyperparameters(fun, bounds, 50,
+    kernel, likelihood = get_hyperparameters(fun, bounds, 100,
                                              kernel, likelihood)
 
     # Init UCB algorithm
