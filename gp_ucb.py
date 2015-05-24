@@ -232,7 +232,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
                                                      likelihood)
         self.inputs = create_linear_spaced_combinations(self.bounds, 200)
-        self.add_new_data_point(*f0)
         self.f_min = fmin
         self.liptschitz = L
 
@@ -288,9 +287,12 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Evaluate acquisition function
         mean, var = self.gp.predict(self.inputs)
 
+        mean = mean.squeeze()
+        var = var.squeeze()
+
         # Update confidence intervals
-        self.Q[:, 1] = mean - beta * np.sqrt(var)
-        self.Q[:, 2] = mean + beta * np.sqrt(var)
+        self.Q[:, 0] = mean - beta * np.sqrt(var)
+        self.Q[:, 1] = mean + beta * np.sqrt(var)
 
         # Convenient views on C (changing them will change C)
         l = self.C[:, 0]
@@ -403,7 +405,7 @@ if __name__ == '__main__':
 
     noise_std_dev = 0.05
     # bounds = [(-1.1, 1), (-1, 0.9)]
-    bounds = [(-1., 1.)]
+    bounds = [(-5., 5.)]
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
@@ -429,7 +431,8 @@ if __name__ == '__main__':
     fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
 
     # Init UCB algorithm
-    gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
+    # gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
+    gp_ucb = GaussianProcessSafeUCB(fun, bounds, kernel, likelihood, 0, 0, 10)
 
     # Optimize
     for i in range(50):
