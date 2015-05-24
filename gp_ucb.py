@@ -41,21 +41,15 @@ def create_linear_spaced_combinations(bounds, num_samples):
     # Convert to 2-D array
     return np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
 
-class GaussianProcessUCB:
-    """A class to maximize a function using GP-UCB.
 
-    Parameters
-    ---------
-    kernel: instance of Gpy.kern.*
-    function: object
-        A function that returns the current value that we want to optimize.
-    bounds: array_like of tuples
-        An array of tuples where each tuple consists of the lower and upper
-        bound on the optimization variable. E.g. for two variables, x1 and
-        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+class GaussianProcessOptimization(object):
+    """
+    Base class for GP optimization.
 
+    Handles common functionality.
     """
     def __init__(self, function, bounds, kernel, likelihood):
+        super(GaussianProcessOptimization, self).__init__()
         self.kernel = kernel
         self.gp = None
 
@@ -106,6 +100,42 @@ class GaussianProcessUCB:
             else:
                 self.gp.plot(plot_limits=np.array(self.bounds).squeeze())
         plt.show()
+
+    def add_new_data_point(self, x, y):
+        """Add a new function observation to the gp"""
+        x = np.atleast_2d(x)
+        y = np.atleast_2d(y)
+        if self.gp is None:
+            # Initialize GP
+            inference_method = GPy.inference.latent_function_inference.\
+                exact_gaussian_inference.ExactGaussianInference()
+            self.gp = GPy.core.GP(X=x,Y=y, kernel=self.kernel,
+                                  inference_method=inference_method,
+                                  likelihood=self.likelihood)
+        else:
+            # Add data to GP
+            self.gp.set_XY(np.vstack([self.gp.X, x]),
+                           np.vstack([self.gp.Y, y]))
+
+
+class GaussianProcessUCB(GaussianProcessOptimization):
+    """
+    A class to maximize a function using GP-UCB.
+
+    Parameters
+    ---------
+    kernel: instance of Gpy.kern.*
+    function: object
+        A function that returns the current value that we want to optimize.
+    bounds: array_like of tuples
+        An array of tuples where each tuple consists of the lower and upper
+        bound on the optimization variable. E.g. for two variables, x1 and
+        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+
+    """
+    def __init__(self, function, bounds, kernel, likelihood):
+        super(GaussianProcessUCB, self).__init__(function, bounds, kernel,
+                                                 likelihood)
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -166,22 +196,6 @@ class GaussianProcessUCB:
         values = self.acquisition_function(inputs, jac=False)
 
         return inputs[np.argmin(values), :]
-
-    def add_new_data_point(self, x, y):
-        """Add a new function observation to the gp"""
-        x = np.atleast_2d(x)
-        y = np.atleast_2d(y)
-        if self.gp is None:
-            # Initialize GP
-            inference_method = GPy.inference.latent_function_inference.\
-                exact_gaussian_inference.ExactGaussianInference()
-            self.gp = GPy.core.GP(X=x,Y=y, kernel=self.kernel,
-                                  inference_method=inference_method,
-                                  likelihood=self.likelihood)
-        else:
-            # Add data to GP
-            self.gp.set_XY(np.vstack([self.gp.X, x]),
-                           np.vstack([self.gp.Y, y]))
 
     def optimize(self):
         """Run one step of bayesian optimization."""
