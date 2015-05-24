@@ -207,6 +207,128 @@ class GaussianProcessUCB(GaussianProcessOptimization):
             self.y_max = value
             self.x_max = np.atleast_1d(x)
 
+def _nearest_neighbour(data, x):
+    """Find the id of the nearest neighbour of x in data."""
+    x = np.atleast_2d(x)
+    return np.argmin(np.sum((data - x) ** 2, 1))
+
+
+class GaussianProcessSafeUCB(GaussianProcessOptimization):
+    """
+    A class to maximize a function using GP-UCB.
+
+    Parameters
+    ---------
+    kernel: instance of Gpy.kern.*
+    function: object
+        A function that returns the current value that we want to optimize.
+    bounds: array_like of tuples
+        An array of tuples where each tuple consists of the lower and upper
+        bound on the optimization variable. E.g. for two variables, x1 and
+        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+
+    """
+    def __init__(self, function, bounds, kernel, likelihood, fmin, x0, L):
+        super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
+                                                     likelihood)
+        self.inputs = create_linear_spaced_combinations(self.bounds, 200)
+        self.add_new_data_point(*f0)
+        self.f_min = fmin
+        self.liptschitz = L
+
+        self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
+        self.C[:, 0] = self.f_min
+        self.C[:, 1] = np.inf
+
+        self.Q = np.empty_like(self.C)
+        self.Q[:, 0] = -np.inf
+        self.Q[:, 1] = np.inf
+
+        x0_id = _nearest_neighbour(self.inputs, x0)
+        value = self.function(self.inputs[x0_id])
+        if value < fmin:
+            raise ValueError('Initial point is unsafe')
+        self.add_new_data_point(self.inputs[x0_id], value)
+
+        self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
+        self.S[x0_id] = True
+
+    def acquisition_function(self, x, jac=True):
+        """Computes -value and -gradient of the acquisition function at x."""
+        beta = 3.
+        x = np.atleast_2d(x)
+
+        mu, var = self.gp.predict(x)
+        value = mu + beta * np.sqrt(var)
+        if not jac:
+            return -value.squeeze()
+
+        dmu, dvar = self.gp.predictive_gradients(x)
+        gradient = dmu + 0.5 * beta * (var ** -0.5) * dvar.T
+
+        if x.shape[1] > 1:
+            gradient = gradient.squeeze()
+
+        return -value.squeeze(), -gradient
+
+    def compute_new_query_point_discrete(self):
+        """
+        Computes a new point at which to evaluate the function.
+
+        The algorithm relies on discretizing all possible values and
+        evaluating all of them.
+        """
+        # GPy is stupid in that it can only be initialized with data,
+        # so just pick a random starting value in the middle
+        if self.gp is None:
+            raise RuntimeError('self.gp should be initialized at this point.')
+
+        beta = 3.
+
+        # Evaluate acquisition function
+        mean, var = self.gp.predict(self.inputs)
+
+        # Update confidence intervals
+        self.Q[:, 1] = mean - beta * np.sqrt(var)
+        self.Q[:, 2] = mean + beta * np.sqrt(var)
+
+        # Convenient views on C (changing them will change C)
+        l = self.C[:, 0]
+        u = self.C[:, 1]
+
+        # Update value interval
+        l = np.where(l < self.Q[:, 0], self.Q[:, 0], l)
+        u = np.where(u > self.Q[:, 1], self.Q[:, 1], u)
+
+        # Expand safe set
+        for safe_point in self.inputs[self.S]:
+            d = np.sqrt(np.sum((self.inputs - safe_point) ** 2, 1))
+            safe_id = l - self.liptschitz * d >= self.f_min
+            self.C[safe_id] = True
+
+        MG = np.zeros_like(self.S)
+        G = np.zeros(np.sum(self.S), dtype=np.bool)
+        for i, safe_point in enumerate(self.inputs[self.S]):
+            d = np.sqrt(np.sum((self.inputs - safe_point) ** 2, 1))
+            G[i] = np.any(u - self.liptschitz * d >= self.f_min)
+        MG[self.S] = G
+
+        MG[u >= np.max(l[self.S])] = True
+
+        value = u[MG] - l[MG]
+
+        return self.inputs[MG][np.argmax(value), :]
+
+    def optimize(self):
+        """Run one step of bayesian optimization."""
+        x = self.compute_new_query_point_discrete()
+        value = self.function(x)
+        self.add_new_data_point(x, value)
+
+        if value > self.y_max:
+            self.y_max = value
+            self.x_max = np.atleast_1d(x)
+
 
 def get_hyperparameters(function, bounds, num_samples, kernel,
                         likelihood=GPy.likelihoods.gaussian.Gaussian()):
@@ -280,7 +402,8 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
 if __name__ == '__main__':
 
     noise_std_dev = 0.05
-    bounds = [(-1.1, 1), (-1, 0.9)]
+    # bounds = [(-1.1, 1), (-1, 0.9)]
+    bounds = [(-1., 1.)]
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
