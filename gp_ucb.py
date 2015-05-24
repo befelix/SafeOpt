@@ -8,6 +8,7 @@ import GPy                            # GPs
 import matplotlib.pyplot as plt       # Plotting
 from collections import Sequence      # isinstance(...,Sequence)
 from matplotlib import cm             # 3D plot colors
+from scipy.spatial.distance import cdist, squareform
 
 
 def create_linear_spaced_combinations(bounds, num_samples):
@@ -60,6 +61,8 @@ class GaussianProcessOptimization(object):
 
         self.x_max = None
         self.y_max = -np.inf
+
+        self.optimization_finished = False
 
     @property
     def likelihood(self):
@@ -252,24 +255,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
         self.S[x0_id] = True
 
-    def acquisition_function(self, x, jac=True):
-        """Computes -value and -gradient of the acquisition function at x."""
-        beta = 3.
-        x = np.atleast_2d(x)
-
-        mu, var = self.gp.predict(x)
-        value = mu + beta * np.sqrt(var)
-        if not jac:
-            return -value.squeeze()
-
-        dmu, dvar = self.gp.predictive_gradients(x)
-        gradient = dmu + 0.5 * beta * (var ** -0.5) * dvar.T
-
-        if x.shape[1] > 1:
-            gradient = gradient.squeeze()
-
-        return -value.squeeze(), -gradient
-
     def compute_new_query_point_discrete(self):
         """
         Computes a new point at which to evaluate the function.
@@ -299,27 +284,30 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         u = self.C[:, 1]
 
         # Update value interval
-        l = np.where(l < self.Q[:, 0], self.Q[:, 0], l)
-        u = np.where(u > self.Q[:, 1], self.Q[:, 1], u)
+        self.C[:, 0] = np.where(l < self.Q[:, 0], self.Q[:, 0], l)
+        self.C[:, 1] = np.where(u > self.Q[:, 1], self.Q[:, 1], u)
 
         # Expand safe set
-        for safe_point in self.inputs[self.S]:
-            d = np.sqrt(np.sum((self.inputs - safe_point) ** 2, 1))
-            safe_id = l - self.liptschitz * d >= self.f_min
-            self.C[safe_id] = True
+        # Euclidean distance between all safe and unsafe points
+        d = cdist(self.inputs[self.S], self.inputs[~self.S])
+        # Apply Lipschitz constant to determine new safe points
+        self.S[~self.S] = np.any(
+            l[self.S, None] - self.liptschitz * d >= self.f_min, 0)
 
-        MG = np.zeros_like(self.S)
-        G = np.zeros(np.sum(self.S), dtype=np.bool)
-        for i, safe_point in enumerate(self.inputs[self.S]):
-            d = np.sqrt(np.sum((self.inputs - safe_point) ** 2, 1))
-            G[i] = np.any(u - self.liptschitz * d >= self.f_min)
-        MG[self.S] = G
+        # Optimistic set of possible expanders
+        G = np.zeros_like(self.S)
+        # TODO: Use the relevant parts of the previously computed d here
+        d = cdist(self.inputs[self.S], self.inputs[~self.S])
+        G[self.S] = np.any(
+            u[self.S, None] - self.liptschitz * d >= self.f_min, 1)
 
-        MG[u >= np.max(l[self.S])] = True
+        # Set of possible maximisers
+        M = np.zeros_like(self.S)
+        M[self.S] = u[self.S] >= np.max(l[self.S])
 
+        MG = np.logical_or(M, G)
         value = u[MG] - l[MG]
-
-        return self.inputs[MG][np.argmax(value), :]
+        return self.inputs[MG][np.argmax(value)]
 
     def optimize(self):
         """Run one step of bayesian optimization."""
@@ -402,10 +390,10 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
 
 
 if __name__ == '__main__':
-
+    # np.random.seed(2)
     noise_std_dev = 0.05
     # bounds = [(-1.1, 1), (-1, 0.9)]
-    bounds = [(-5., 5.)]
+    bounds = [(-10., 10.)]
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
@@ -428,15 +416,18 @@ if __name__ == '__main__':
     # print('optimized hyperparameters')
 
     # Sample a function from the GP
-    fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
+    while True:
+        fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
+        if fun(0) > 0.5:
+            break
 
     # Init UCB algorithm
     # gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
-    gp_ucb = GaussianProcessSafeUCB(fun, bounds, kernel, likelihood, 0, 0, 10)
+    gp_ucb = GaussianProcessSafeUCB(fun, bounds, kernel, likelihood, 0., 0., 2)
 
     # Optimize
-    for i in range(50):
-        gp_ucb.optimize()
+    for i in range(100):
+        fin = gp_ucb.optimize()
         # a = raw_input('wait')
     gp_ucb.plot()
 
