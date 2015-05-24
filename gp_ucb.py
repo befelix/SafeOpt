@@ -6,7 +6,39 @@ import numpy as np
 from scipy.optimize import minimize
 import GPy
 import matplotlib.pyplot as plt
+from collections import Sequence
 
+
+def create_linear_spaced_combinations(bounds, num_samples):
+    """
+    Return 2-D array with all linearly spaced combinations with the bounds.
+
+    Parameters
+    ----------
+    bounds: sequence of tuples
+        The bounds for the variables, [(x1_min, x1_max), (x2_min, x2_max), ...]
+    num_samples: integer or array_like
+        Number of samples to use for every dimension. Can be a constant if
+        the same number should be used for all, or an array to fine-tune
+        precision. Total number of data points is num_samples ** len(bounds).
+
+    Returns
+    -------
+    combinations: 2-d array
+        A 2-d arrray. If d = len(bounds) and l = prod(num_samples) then it
+        is of size l x d, that is, every row contains one combination of
+        inputs.
+    """
+    num_vars = len(bounds)
+    if not isinstance(num_samples, Sequence):
+        num_samples = [num_samples] * num_vars
+
+    # Create linearly spaced test inputs
+    inputs = [np.linspace(b[0], b[1], n) for b, n in zip(bounds,
+                                                         num_samples)]
+
+    # Convert to 2-D array
+    return np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
 
 class GaussianProcessUCB:
     """A class to maximize a function using GP-UCB.
@@ -34,8 +66,6 @@ class GaussianProcessUCB:
         self.x_max = None
         self.y_max = -np.inf
 
-        self.maximize = 1
-
     @property
     def likelihood(self):
         if self.gp is None:
@@ -46,7 +76,12 @@ class GaussianProcessUCB:
     def plot(self):
         """Plot the current state of the optimization."""
         if self.kernel.input_dim > 1:
+            if self.gp is None:
+                return None
+            plt.close()
+
             return None
+
         if self.gp is None:
             x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
             K = self.kernel.Kdiag(x[:, None])
@@ -112,15 +147,7 @@ class GaussianProcessUCB:
         if self.gp is None:
             return np.mean(self.bounds, axis=1)
 
-        num_vars = len(self.bounds)
-        num_samples = [200] * num_vars
-
-        # Create linearly spaced test inputs
-        inputs = [np.linspace(b[0], b[1], n) for b, n in zip(self.bounds,
-                                                             num_samples)]
-
-        # Convert to 2-D array
-        inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
+        inputs = create_linear_spaced_combinations(self.bounds, 200)
 
         # Evaluate acquisition function
         values = self.acquisition_function(inputs, jac=False)
@@ -149,7 +176,7 @@ class GaussianProcessUCB:
     def optimize(self):
         """Run one step of bayesian optimization."""
         x = self.compute_new_query_point_discrete()
-        value = self.function(*x)
+        value = self.function(x)
         self.add_new_data_point(x, value)
 
         if value > self.y_max:
@@ -180,22 +207,13 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     kernel: instance of GPy.kern.*
     likelihood: instance of GPy.likelihoods.*
     """
-    num_vars = len(bounds)
-
-    # linearly space test inputs
-    test_vars = np.empty((num_vars, num_samples), dtype=np.float)
-    for row in range(num_vars):
-        test_vars[row, :] = np.linspace(bounds[row][0], bounds[row][1],
-                                        num_samples)
-
-    # Store test inputs in the appropriate form
-    inputs = np.array([x.ravel() for x in np.meshgrid(*test_vars)])
-    output = function(*inputs)
+    inputs = create_linear_spaced_combinations(bounds, num_samples)
+    output = function(inputs)
 
     inference_method = GPy.inference.latent_function_inference.\
         exact_gaussian_inference.ExactGaussianInference()
 
-    gp = GPy.core.GP(X=inputs.T, Y=output[:, None],
+    gp = GPy.core.GP(X=inputs, Y=output[:, None],
                      kernel=kernel,
                      inference_method=inference_method,
                      likelihood=likelihood)
@@ -220,21 +238,16 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
         returns the corresponding noise function values
     """
     from scipy.interpolate import griddata
-    num_vars = len(bounds)
-    num_samples = [num_samples] * num_vars
 
-    # Create linearly spaced test inputs
-    inputs = [np.linspace(b[0], b[1], n) for b, n in zip(bounds, num_samples)]
-
-    # Convert to 2-D array
-    inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
-
-    values = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
+    inputs = create_linear_spaced_combinations(bounds, num_samples)
+    output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
                                            kernel.K(inputs))
 
-    def evaluate_gp_function(*x):
-        x = np.asarray(x)
-        return griddata(inputs, values, x, method='linear') + \
+    def evaluate_gp_function(x, return_data=False):
+        if return_data:
+            return inputs, output
+        x = np.atleast_2d(x)
+        return griddata(inputs, output, x, method='linear') + \
                noise_std_dev * np.random.randn(x.shape[0], 1)
 
     return evaluate_gp_function
@@ -254,18 +267,19 @@ if __name__ == '__main__':
                           ARD=True)
 
     # Optimization function
-    def fun(x, y):
-        x = np.asarray(x)
-        y = np.asarray(y)
-        return x ** 2 + y ** 2 + noise_std_dev * np.random.randn(*x.shape)
+    def fun(x):
+        x = np.atleast_2d(x)
+        y = x[:, 0] ** 2 + x[:, 1] ** 2 + \
+            noise_std_dev * np.random.randn(x.shape[0])
+        return y
 
     # Optimize hyperparameters
     kernel, likelihood = get_hyperparameters(fun, bounds, 20,
                                              kernel, likelihood)
     print('optimized hyperparameters')
 
-    # Sample a function from the GP
-    # fun = sample_gp_function(kernel, bounds, noise_std_dev, 100)
+    # # Sample a function from the GP
+    # fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
 
     # Init UCB algorithm
     gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
