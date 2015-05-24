@@ -169,10 +169,7 @@ class GaussianProcessUCB:
             # Add data to GP
             self.gp.set_XY(np.vstack([self.gp.X, x]),
                            np.vstack([self.gp.Y, y]))
-
-        # if len(self.gp.Y) >= 5:
-        #     self.gp.optimize()
-
+            
     def optimize(self):
         """Run one step of bayesian optimization."""
         x = self.compute_new_query_point_discrete()
