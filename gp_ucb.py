@@ -2,11 +2,12 @@ from __future__ import print_function, absolute_import, division
 
 __author__ = 'felix'
 
-import numpy as np
-from scipy.optimize import minimize
-import GPy
-import matplotlib.pyplot as plt
-from collections import Sequence
+import numpy as np                    # ...
+from scipy.optimize import minimize   # Optimization for continuous case
+import GPy                            # GPs
+import matplotlib.pyplot as plt       # Plotting
+from collections import Sequence      # isinstance(...,Sequence)
+from matplotlib import cm             # 3D plot colors
 
 
 def create_linear_spaced_combinations(bounds, num_samples):
@@ -75,24 +76,36 @@ class GaussianProcessUCB:
 
     def plot(self):
         """Plot the current state of the optimization."""
-        if self.kernel.input_dim > 1:
-            if self.gp is None:
-                return None
-            plt.close()
-
+        plt.close()
+        # 4d plots are tough...
+        if self.kernel.input_dim > 2:
             return None
 
-        if self.gp is None:
-            x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
-            K = self.kernel.Kdiag(x[:, None])
-            std_dev = np.sqrt(K)
-            plt.fill_between(x, -std_dev, std_dev, facecolor='blue',
-                             alpha=0.5)
-            plt.show()
-        else:
-            plt.close()
-            self.gp.plot(plot_limits=np.array(self.bounds).squeeze())
-            plt.show()
+        if self.kernel.input_dim > 1:   # 3D plot
+            if self.gp is None:
+                return None
+            else:
+                fig = plt.figure()
+                ax = fig.gca(projection='3d')
+
+                inputs = create_linear_spaced_combinations(self.bounds, 100)
+                output, var = self.gp.predict(inputs)
+                output += 2 * np.sqrt(var)
+
+                ax.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
+                                cmap=cm.jet, linewidth=0.2, alpha=0.5)
+
+                ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
+        else:   # 2D plots with uncertainty
+            if self.gp is None:
+                x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
+                K = self.kernel.Kdiag(x[:, None])
+                std_dev = np.sqrt(K)
+                plt.fill_between(x, -std_dev, std_dev, facecolor='blue',
+                                 alpha=0.5)
+            else:
+                self.gp.plot(plot_limits=np.array(self.bounds).squeeze())
+        plt.show()
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -169,7 +182,7 @@ class GaussianProcessUCB:
             # Add data to GP
             self.gp.set_XY(np.vstack([self.gp.X, x]),
                            np.vstack([self.gp.Y, y]))
-            
+
     def optimize(self):
         """Run one step of bayesian optimization."""
         x = self.compute_new_query_point_discrete()
@@ -257,26 +270,26 @@ if __name__ == '__main__':
 
     # Set fixed Gaussian measurement noise
     likelihood = GPy.likelihoods.gaussian.Gaussian(variance=noise_std_dev**2)
-    likelihood.constrain_fixed()
+    likelihood.constrain_fixed(warning=False)
 
     # Define Kernel
     kernel = GPy.kern.RBF(input_dim=len(bounds), variance=2., lengthscale=1.0,
                           ARD=True)
 
     # Optimization function
-    def fun(x):
-        x = np.atleast_2d(x)
-        y = x[:, 0] ** 2 + x[:, 1] ** 2 + \
-            noise_std_dev * np.random.randn(x.shape[0])
-        return y
+    # def fun(x):
+    #     x = np.atleast_2d(x)
+    #     y = x[:, 0] ** 2 + x[:, 1] ** 2 + \
+    #         noise_std_dev * np.random.randn(x.shape[0])
+    #     return y
+    #
+    # # Optimize hyperparameters
+    # kernel, likelihood = get_hyperparameters(fun, bounds, 20,
+    #                                          kernel, likelihood)
+    # print('optimized hyperparameters')
 
-    # Optimize hyperparameters
-    kernel, likelihood = get_hyperparameters(fun, bounds, 20,
-                                             kernel, likelihood)
-    print('optimized hyperparameters')
-
-    # # Sample a function from the GP
-    # fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
+    # Sample a function from the GP
+    fun = sample_gp_function(kernel, bounds, noise_std_dev, 20)
 
     # Init UCB algorithm
     gp_ucb = GaussianProcessUCB(fun, bounds, kernel, likelihood)
