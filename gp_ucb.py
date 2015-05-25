@@ -2,16 +2,16 @@ from __future__ import print_function, absolute_import, division
 
 __author__ = 'felix'
 
-import numpy as np                    # ...
-from scipy.optimize import minimize   # Optimization for continuous case
-import GPy                            # GPs
-import matplotlib.pyplot as plt       # Plotting
-from collections import Sequence      # isinstance(...,Sequence)
-from matplotlib import cm             # 3D plot colors
-from scipy.spatial.distance import cdist, squareform
+import numpy as np                          # ...
+import GPy                                  # GPs
+import matplotlib.pyplot as plt             # Plotting
+from collections import Sequence            # isinstance(...,Sequence)
+from matplotlib import cm                   # 3D plot colors
+from scipy.spatial.distance import cdist    # Efficient distance computation
+from scipy.interpolate import griddata      # For sampling GP functions
 
 
-def create_linear_spaced_combinations(bounds, num_samples):
+def create_linearly_spaced_combinations(bounds, num_samples):
     """
     Return 2-D array with all linearly spaced combinations with the bounds.
 
@@ -19,7 +19,7 @@ def create_linear_spaced_combinations(bounds, num_samples):
     ----------
     bounds: sequence of tuples
         The bounds for the variables, [(x1_min, x1_max), (x2_min, x2_max), ...]
-    num_samples: integer or array_like
+    num_samples: integer or array_likem
         Number of samples to use for every dimension. Can be a constant if
         the same number should be used for all, or an array to fine-tune
         precision. Total number of data points is num_samples ** len(bounds).
@@ -91,7 +91,7 @@ class GaussianProcessOptimization(object):
                 fig = plt.figure()
                 ax = fig.gca(projection='3d')
 
-                inputs = create_linear_spaced_combinations(self.bounds, 100)
+                inputs = create_linearly_spaced_combinations(self.bounds, 100)
                 output, var = self.gp.predict(inputs)
                 output += 2 * np.sqrt(var)
 
@@ -133,13 +133,14 @@ class GaussianProcessUCB(GaussianProcessOptimization):
 
     Parameters
     ---------
-    kernel: instance of Gpy.kern.*
     function: object
         A function that returns the current value that we want to optimize.
     bounds: array_like of tuples
         An array of tuples where each tuple consists of the lower and upper
         bound on the optimization variable. E.g. for two variables, x1 and
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+    kernel: instance of GPy.kern.*
+    likelihood: instance of GPy.likelihoods.*
 
     """
     def __init__(self, function, bounds, kernel, likelihood):
@@ -164,42 +165,19 @@ class GaussianProcessUCB(GaussianProcessOptimization):
 
         return -value.squeeze(), -gradient
 
-    def compute_new_query_point(self):
-        """Computes a new point at which to evaluate the function."""
-        # GPy is stupid in that it can only be initialized with data,
-        # so just pick a random starting value in the middle
-        if self.gp is None:
-            return np.mean(self.bounds, axis=1)
-
-        x_max = 0.5
-        v_max = -np.inf
-
-        # TODO: This needs to be less cured
-        for i in range(50):
-            x0 = np.array([np.random.uniform(b[0], b[1]) for b in self.bounds])
-
-            res = minimize(self.acquisition_function, x0,
-                           jac=True, bounds=self.bounds, method='L-BFGS-B')
-
-            # Keep track of maximum
-            if -res.fun >= v_max:
-                v_max = -res.fun
-                x_max = res.x
-        return x_max
-
     def compute_new_query_point_discrete(self):
         """
         Computes a new point at which to evaluate the function.
 
         The algorithm relies on discretizing all possible values and
-        evaluating all of them.
+        evaluating all of them. Fast, but memory inefficient.
         """
         # GPy is stupid in that it can only be initialized with data,
         # so just pick a random starting value in the middle
         if self.gp is None:
             return np.mean(self.bounds, axis=1)
 
-        inputs = create_linear_spaced_combinations(self.bounds, 200)
+        inputs = create_linearly_spaced_combinations(self.bounds, 200)
 
         # Evaluate acquisition function
         values = self.acquisition_function(inputs, jac=False)
@@ -208,13 +186,18 @@ class GaussianProcessUCB(GaussianProcessOptimization):
 
     def optimize(self):
         """Run one step of bayesian optimization."""
+        # Get new input value
         x = self.compute_new_query_point_discrete()
+        # Sample noisy output
         value = self.function(x)
+        # Add data point to the GP
         self.add_new_data_point(x, value)
 
+        # Keep track of best observed value (not necessarily the maximum)
         if value > self.y_max:
             self.y_max = value
             self.x_max = np.atleast_1d(x)
+
 
 def _nearest_neighbour(data, x):
     """Find the id of the nearest neighbour of x in data."""
@@ -228,38 +211,49 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
     Parameters
     ---------
-    kernel: instance of Gpy.kern.*
     function: object
         A function that returns the current value that we want to optimize.
     bounds: array_like of tuples
         An array of tuples where each tuple consists of the lower and upper
         bound on the optimization variable. E.g. for two variables, x1 and
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+    kernel: instance of GPy.kern.*
+    likelihood: instance of GPy.likelihoods.*
+    fmin: float
+        Safety threshold for the function value
+    x0: float
+        Initial point for the optimization
 
     """
     def __init__(self, function, bounds, kernel, likelihood, fmin, x0, L):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
                                                      likelihood)
-        self.inputs = create_linear_spaced_combinations(self.bounds, 1000)
-        self.f_min = fmin
+        self.fmin = fmin
         self.liptschitz = L
 
+        # Create test inputs for optimization, make sure initial point is in
+        #  there
+        self.inputs = create_linearly_spaced_combinations(self.bounds, 1000)
+        self.inputs = np.vstack([np.atleast_2d(x0), self.inputs])
+
+        # Value intervals
         self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
-        self.C[:, 0] = self.f_min
-        self.C[:, 1] = np.inf
+        self.C[:] = [self.fmin, np.inf]
 
+        # GP confidence intervals
         self.Q = np.empty_like(self.C)
-        self.Q[:, 0] = -np.inf
-        self.Q[:, 1] = np.inf
+        self.Q[:] = [-np.inf, np.inf]
 
-        x0_id = _nearest_neighbour(self.inputs, x0)
-        value = self.function(self.inputs[x0_id])
+        # Safe set
+        self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
+
+        # Get initial value and add it to the GP and the safe set
+        value = self.function(self.inputs[0, :])
         if value < fmin:
             raise ValueError('Initial point is unsafe')
-        self.add_new_data_point(self.inputs[x0_id], value)
-
-        self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
-        self.S[x0_id] = True
+        else:
+            self.add_new_data_point(self.inputs[0, :], value)
+            self.S[0] = True
 
     def compute_new_query_point_discrete(self):
         """
@@ -288,24 +282,26 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Convenient views on C (changing them will change C)
         l = self.C[:, 0]
         u = self.C[:, 1]
+        Ql = self.Q[:, 0]
+        Qu = self.Q[:, 1]
 
-        # Update value interval
-        self.C[:, 0] = np.where(l < self.Q[:, 0], self.Q[:, 0], l)
-        self.C[:, 1] = np.where(u > self.Q[:, 1], self.Q[:, 1], u)
+        # Update value interval, make sure C(t+1) is contained in C(t)
+        self.C[:, 0] = np.where(l < Ql, np.min([Ql, u], 0), l)
+        self.C[:, 1] = np.where(u > Qu, np.max([Qu, l], 0), u)
 
         # Expand safe set
         # Euclidean distance between all safe and unsafe points
         d = cdist(self.inputs[self.S], self.inputs[~self.S])
         # Apply Lipschitz constant to determine new safe points
         self.S[~self.S] = np.any(
-            l[self.S, None] - self.liptschitz * d >= self.f_min, 0)
+            l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
 
         # Optimistic set of possible expanders
         G = np.zeros_like(self.S)
         # TODO: Use the relevant parts of the previously computed d here
         d = cdist(self.inputs[self.S], self.inputs[~self.S])
         G[self.S] = np.any(
-            u[self.S, None] - self.liptschitz * d >= self.f_min, 1)
+            u[self.S, None] - self.liptschitz * d >= self.fmin, 1)
 
         # Set of possible maximisers
         M = np.zeros_like(self.S)
@@ -317,10 +313,14 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
     def optimize(self):
         """Run one step of bayesian optimization."""
+        # Get new input value
         x = self.compute_new_query_point_discrete()
+        # Sample noisy output
         value = self.function(x)
+        # Add data point to the GP
         self.add_new_data_point(x, value)
 
+        # Keep track of best observed value (not necessarily the maximum)
         if value > self.y_max:
             self.y_max = value
             self.x_max = np.atleast_1d(x)
@@ -339,7 +339,8 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     bounds: array_like of tuples
         Each tuple consists of the upper and lower bounds of the variable
     N: integer
-        Number of sample points per dimension, total = N ** len(bounds)
+        Number of sample points per dimension, total = N ** len(bounds).
+        Alternatively a list of sample points per dimension.
     kernel: instance of GPy.kern.*
     likelihood: instance of GPy.likelihoods.*
         Defaults to GPy.likelihoods.gaussian.Gaussian()
@@ -347,9 +348,17 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     Returns
     -------
     kernel: instance of GPy.kern.*
+        Kernel with the optimized hyperparameters
     likelihood: instance of GPy.likelihoods.*
+        Likelihood with the optimized hyperparameters
+
+    Notes
+    -----
+    Constrained optimization of the hyperparameters can be handled by
+    passing a kernel or likelihood with the corresponding constraints. E.g.
+    ``likelihood.constrain_fixed(warning=False)`` to fix the observation noise.
     """
-    inputs = create_linear_spaced_combinations(bounds, num_samples)
+    inputs = create_linearly_spaced_combinations(bounds, num_samples)
     output = function(inputs)
 
     inference_method = GPy.inference.latent_function_inference.\
@@ -363,7 +372,7 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     return gp.kern, gp.likelihood
 
 
-def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
+def sample_gp_function(kernel, bounds, noise, num_samples):
     """
     Sample a function from a gp with corresponding kernel within its bounds.
 
@@ -372,16 +381,21 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
     kernel: instance of GPy.kern.*
     bounds: list of tuples
         [(x1_min, x1_max), (x2_min, x2_max), ...]
+    noise: float
+        Variance of the observation noise of the GP function
+    num_samples: int or list
+        If integer draws the corresponding number of samples in all
+        dimensions and test all possible input combinations. If a list then
+        the list entries correspond to the number of linearly spaced samples of
+        the corresponding input
 
     Returns
     -------
     function: object
         A function that takes as inputs new locations x to be evaluated and
-        returns the corresponding noise function values
+        returns the corresponding noisy function values
     """
-    from scipy.interpolate import griddata
-
-    inputs = create_linear_spaced_combinations(bounds, num_samples)
+    inputs = create_linearly_spaced_combinations(bounds, num_samples)
     output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
                                            kernel.K(inputs))
 
@@ -390,6 +404,6 @@ def sample_gp_function(kernel, bounds, noise_std_dev, num_samples):
             return inputs, output
         x = np.atleast_2d(x)
         return griddata(inputs, output, x, method='linear') + \
-               noise_std_dev * np.random.randn(x.shape[0], 1)
+               np.sqrt(noise) * np.random.randn(x.shape[0], 1)
 
     return evaluate_gp_function
