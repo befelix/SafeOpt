@@ -94,7 +94,8 @@ class GaussianProcessOptimization(object):
             if self.gp is None:
                 return None
             else:
-                self.gp.plot() #plot_limits=self.bounds, ax=axis)
+                # Use 2D plot, 3D is too slow
+                self.gp.plot(plot_limits=np.array(self.bounds).T, ax=axis)
                 return None
                 fig = plt.figure()
                 ax = Axes3D(fig)
@@ -104,7 +105,7 @@ class GaussianProcessOptimization(object):
 
                 ax.plot_trisurf(self.inputs[:, 0], self.inputs[:, 1],
                                 output[:, 0],
-                                cmap=cm.jet, linewidth=0.2)
+                                cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
         else:   # 2D plots with uncertainty
