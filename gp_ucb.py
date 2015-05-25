@@ -243,6 +243,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
+        self.G = np.ones_like(self.S)
 
         # Get initial value and add it to the GP and the safe set
         value = self.function(self.inputs[0, :])
@@ -254,6 +255,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Switch to use confidence intervals for safety
         self.use_confidence_safety = False
+        self.use_confidence_expansion = False
 
         self.C[self.S, 0] = self.fmin
 
@@ -280,7 +282,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Update confidence intervals
         self.Q[:, 0] = mean - beta * np.sqrt(var)
         self.Q[:, 1] = mean + beta * np.sqrt(var)
-
+        self.C = self.Q
         # Convenient views on C (changing them will change C)
         l = self.C[:, 0]
         u = self.C[:, 1]
@@ -288,8 +290,8 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         Qu = self.Q[:, 1]
 
         # Update value interval, make sure C(t+1) is contained in C(t)
-        self.C[:, 0] = np.where(l < Ql, np.min([Ql, u], 0), l)
-        self.C[:, 1] = np.where(u > Qu, np.max([Qu, l], 0), u)
+        # self.C[:, 0] = np.where(l < Ql, np.min([Ql, u], 0), l)
+        # self.C[:, 1] = np.where(u > Qu, np.max([Qu, l], 0), u)
 
         # Expand safe set
         # Euclidean distance between all safe and unsafe points
@@ -298,15 +300,36 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         safe_id = np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
         if self.use_confidence_safety:
             self.S[~self.S] = np.logical_or(safe_id, l[~self.S] >= self.fmin)
+
         else:
             self.S[~self.S] = safe_id
 
         # Optimistic set of possible expanders
+        s = np.logical_and(self.S, self.G)
         G = np.zeros_like(self.S)
+        G2 = np.zeros_like(self.S[s])
+        g2 = np.ones_like(self.S[s])
         # TODO: Use the relevant parts of the previously computed d here
-        d = cdist(self.inputs[self.S], self.inputs[~self.S])
-        G[self.S] = np.any(
-            u[self.S, None] - self.liptschitz * d >= self.fmin, 1)
+        if self.use_confidence_expansion:
+            for i, (x, y) in enumerate(zip(self.inputs[s, :], u[s])):
+                self.add_new_data_point(x, y)
+                mean2, var2 = self.gp.predict(self.inputs[~self.S])
+                mean2 = mean2.squeeze()
+                var2 = var2.squeeze()
+                l2 = mean2 - beta * np.sqrt(var2)
+                if np.any(l2 >= self.fmin):
+                    G2[i] = True
+                else:
+                    u2 = mean2 - beta * np.sqrt(var2)
+                    if not any(u2 >= self.fmin):
+                        g2[i] = False
+                self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
+            G[s] = G2
+            self.G[s] = g2
+        else:
+            d = cdist(self.inputs[self.S], self.inputs[~self.S])
+            G[self.S] = np.any(
+                u[self.S, None] - self.liptschitz * d >= self.fmin, 1)
 
         # Set of possible maximisers
         M = np.zeros_like(self.S)
