@@ -9,6 +9,7 @@ from collections import Sequence            # isinstance(...,Sequence)
 from matplotlib import cm                   # 3D plot colors
 from scipy.spatial.distance import cdist    # Efficient distance computation
 from scipy.interpolate import griddata      # For sampling GP functions
+from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 
 
 def create_linearly_spaced_combinations(bounds, num_samples):
@@ -49,8 +50,9 @@ class GaussianProcessOptimization(object):
 
     Handles common functionality.
     """
-    def __init__(self, function, bounds, kernel, likelihood):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples):
         super(GaussianProcessOptimization, self).__init__()
+
         self.kernel = kernel
         self.gp = None
 
@@ -61,6 +63,10 @@ class GaussianProcessOptimization(object):
 
         self.x_max = None
         self.y_max = -np.inf
+
+        # Create test inputs for optimization
+        self.inputs = create_linearly_spaced_combinations(self.bounds,
+                                                          num_samples)
 
         self.optimization_finished = False
 
@@ -88,15 +94,17 @@ class GaussianProcessOptimization(object):
             if self.gp is None:
                 return None
             else:
+                self.gp.plot() #plot_limits=self.bounds, ax=axis)
+                return None
                 fig = plt.figure()
-                ax = fig.gca(projection='3d')
+                ax = Axes3D(fig)
 
-                inputs = create_linearly_spaced_combinations(self.bounds, 100)
-                output, var = self.gp.predict(inputs)
-                output += 2 * np.sqrt(var)
+                output, var = self.gp.predict(self.inputs)
+                # output += 2 * np.sqrt(var)
 
-                ax.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
-                                cmap=cm.jet, linewidth=0.2, alpha=0.5)
+                ax.plot_trisurf(self.inputs[:, 0], self.inputs[:, 1],
+                                output[:, 0],
+                                cmap=cm.jet, linewidth=0.2)
 
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
         else:   # 2D plots with uncertainty
@@ -141,11 +149,13 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
     kernel: instance of GPy.kern.*
     likelihood: instance of GPy.likelihoods.*
+    num_samples: integer or list of integers
+        Number of data points to use for the optimization and plotting
 
     """
-    def __init__(self, function, bounds, kernel, likelihood):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples):
         super(GaussianProcessUCB, self).__init__(function, bounds, kernel,
-                                                 likelihood)
+                                                 likelihood, num_samples)
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -177,10 +187,8 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         if self.gp is None:
             return np.mean(self.bounds, axis=1)
 
-        inputs = create_linearly_spaced_combinations(self.bounds, 200)
-
         # Evaluate acquisition function
-        values = self.acquisition_function(inputs, jac=False)
+        values = self.acquisition_function(self.inputs, jac=False)
 
         return inputs[np.argmin(values), :]
 
@@ -219,21 +227,22 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
     kernel: instance of GPy.kern.*
     likelihood: instance of GPy.likelihoods.*
+    num_samples: integer or list of integers
+        Number of data points to use for the optimization and plotting
     fmin: float
         Safety threshold for the function value
     x0: float
         Initial point for the optimization
 
     """
-    def __init__(self, function, bounds, kernel, likelihood, fmin, x0, L):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples, fmin,
+                 x0, L):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
-                                                     likelihood)
+                                                     likelihood, num_samples)
         self.fmin = fmin
         self.liptschitz = L
 
-        # Create test inputs for optimization, make sure initial point is in
-        #  there
-        self.inputs = create_linearly_spaced_combinations(self.bounds, 1000)
+        # make sure initial point is in optimization points
         self.inputs = np.vstack([np.atleast_2d(x0), self.inputs])
 
         # Value intervals
