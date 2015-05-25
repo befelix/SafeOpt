@@ -238,11 +238,8 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Value intervals
         self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
-        self.C[:] = [self.fmin, np.inf]
-
-        # GP confidence intervals
-        self.Q = np.empty_like(self.C)
-        self.Q[:] = [-np.inf, np.inf]
+        self.C[:] = [-self.np.inf, np.inf]
+        self.Q = self.C.copy()
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
@@ -254,6 +251,8 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         else:
             self.add_new_data_point(self.inputs[0, :], value)
             self.S[0] = True
+            
+        self.C[self.C, 0] = self.fmin
 
     def compute_new_query_point_discrete(self):
         """
