@@ -71,9 +71,15 @@ class GaussianProcessOptimization(object):
         else:
             return self.gp.likelihood
 
-    def plot(self):
-        """Plot the current state of the optimization."""
-        plt.close()
+    def plot(self, axis=None):
+        """
+        Plot the current state of the optimization.
+
+        Parameters
+        ----------
+        axis: matplotlib axis
+            The axis on which to draw (does not get cleared first)
+        """
         # 4d plots are tough...
         if self.kernel.input_dim > 2:
             return None
@@ -99,10 +105,10 @@ class GaussianProcessOptimization(object):
                 K = self.kernel.Kdiag(x[:, None])
                 std_dev = np.sqrt(K)
                 plt.fill_between(x, -std_dev, std_dev, facecolor='blue',
-                                 alpha=0.5)
+                                 alpha=0.5, axis=axis)
             else:
-                self.gp.plot(plot_limits=np.array(self.bounds).squeeze())
-        plt.show()
+                self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
+                             ax=axis)
 
     def add_new_data_point(self, x, y):
         """Add a new function observation to the gp"""
@@ -234,7 +240,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
     def __init__(self, function, bounds, kernel, likelihood, fmin, x0, L):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
                                                      likelihood)
-        self.inputs = create_linear_spaced_combinations(self.bounds, 200)
+        self.inputs = create_linear_spaced_combinations(self.bounds, 1000)
         self.f_min = fmin
         self.liptschitz = L
 
