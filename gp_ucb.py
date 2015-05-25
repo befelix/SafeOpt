@@ -233,7 +233,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Create test inputs for optimization, make sure initial point is in
         #  there
-        self.inputs = create_linearly_spaced_combinations(self.bounds, 1000)
+        self.inputs = create_linearly_spaced_combinations(self.bounds, 300)
         self.inputs = np.vstack([np.atleast_2d(x0), self.inputs])
 
         # Value intervals
@@ -243,7 +243,9 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
-        self.G = np.ones_like(self.S)
+
+        # Set of points that could potentially expand the safe set
+        self.can_expand = np.ones_like(self.S)
 
         # Get initial value and add it to the GP and the safe set
         value = self.function(self.inputs[0, :])
@@ -282,7 +284,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Update confidence intervals
         self.Q[:, 0] = mean - beta * np.sqrt(var)
         self.Q[:, 1] = mean + beta * np.sqrt(var)
-        self.C = self.Q
+
         # Convenient views on C (changing them will change C)
         l = self.C[:, 0]
         u = self.C[:, 1]
@@ -290,8 +292,8 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         Qu = self.Q[:, 1]
 
         # Update value interval, make sure C(t+1) is contained in C(t)
-        # self.C[:, 0] = np.where(l < Ql, np.min([Ql, u], 0), l)
-        # self.C[:, 1] = np.where(u > Qu, np.max([Qu, l], 0), u)
+        self.C[:, 0] = np.where(l < Ql, np.min([Ql, u], 0), l)
+        self.C[:, 1] = np.where(u > Qu, np.max([Qu, l], 0), u)
 
         # Expand safe set
         # Euclidean distance between all safe and unsafe points
@@ -305,27 +307,38 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             self.S[~self.S] = safe_id
 
         # Optimistic set of possible expanders
-        s = np.logical_and(self.S, self.G)
         G = np.zeros_like(self.S)
-        G2 = np.zeros_like(self.S[s])
-        g2 = np.ones_like(self.S[s])
         # TODO: Use the relevant parts of the previously computed d here
         if self.use_confidence_expansion:
+            # set of safe potential expanders
+            s = np.logical_and(self.S, self.can_expand)
+            # set of safe expanders
+            G_safe = np.zeros(np.sum(s), dtype=np.bool)
+            # set of variables that have any hope of being expanders in the
+            # future
+            can_expand = np.ones_like(G_safe)
             for i, (x, y) in enumerate(zip(self.inputs[s, :], u[s])):
+                # Add safe point with it's max possible value to the gp
                 self.add_new_data_point(x, y)
+                # Prediction of unsafe points based on that
                 mean2, var2 = self.gp.predict(self.inputs[~self.S])
                 mean2 = mean2.squeeze()
                 var2 = var2.squeeze()
                 l2 = mean2 - beta * np.sqrt(var2)
+                # If the unsafe lower bound is suddenly above fmin: expander
                 if np.any(l2 >= self.fmin):
-                    G2[i] = True
+                    G_safe[i] = True
                 else:
+                    # If there is no new upper bound that suddenly came
+                    # above the threshold then it's unlikely that they will
+                    # ever be expanders in the future --> Prune them
                     u2 = mean2 - beta * np.sqrt(var2)
-                    if not any(u2 >= self.fmin):
-                        g2[i] = False
+                    if np.all(u2 < self.fmin):
+                        can_expand[i] = False
+                # Remove the fake data point from the GP again
                 self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
-            G[s] = G2
-            self.G[s] = g2
+            G[s] = G_safe
+            self.can_expand[s] = can_expand
         else:
             d = cdist(self.inputs[self.S], self.inputs[~self.S])
             G[self.S] = np.any(
