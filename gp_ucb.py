@@ -252,6 +252,9 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             self.add_new_data_point(self.inputs[0, :], value)
             self.S[0] = True
 
+        # Switch to use confidence intervals for safety
+        self.use_confidence_safety = False
+
         self.C[self.S, 0] = self.fmin
 
     def compute_new_query_point_discrete(self):
@@ -292,8 +295,11 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Euclidean distance between all safe and unsafe points
         d = cdist(self.inputs[self.S], self.inputs[~self.S])
         # Apply Lipschitz constant to determine new safe points
-        self.S[~self.S] = np.any(
-            l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
+        safe_id = np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
+        if self.use_confidence_safety:
+            self.S[~self.S] = np.logical_or(safe_id, l[~self.S] >= self.fmin)
+        else:
+            self.S[~self.S] = safe_id
 
         # Optimistic set of possible expanders
         G = np.zeros_like(self.S)
