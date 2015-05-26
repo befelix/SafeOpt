@@ -191,7 +191,7 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         # Evaluate acquisition function
         values = self.acquisition_function(self.inputs, jac=False)
 
-        return inputs[np.argmin(values), :]
+        return self.inputs[np.argmin(values), :]
 
     def optimize(self):
         """Run one step of bayesian optimization."""
@@ -262,10 +262,11 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             self.add_new_data_point(self.inputs[0, :], value)
             self.S[0] = True
 
+        self.C[self.S, 0] = self.fmin
+
         # Switch to use confidence intervals for safety
         self.use_confidence_safety = False
 
-        self.C[self.S, 0] = self.fmin
 
     def compute_new_query_point_discrete(self):
         """
@@ -285,11 +286,11 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         mean, var = self.gp.predict(self.inputs)
 
         mean = mean.squeeze()
-        var = var.squeeze()
+        std_dev = np.sqrt(var.squeeze())
 
         # Update confidence intervals
-        self.Q[:, 0] = mean - beta * np.sqrt(var)
-        self.Q[:, 1] = mean + beta * np.sqrt(var)
+        self.Q[:, 0] = mean - beta * std_dev
+        self.Q[:, 1] = mean + beta * std_dev
 
         # Convenient views on C (changing them will change C)
         l = self.C[:, 0]
