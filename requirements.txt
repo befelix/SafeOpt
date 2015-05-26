@@ -1,0 +1,4 @@
+GPy >= 0.6.0
+numpy >= 1.7
+scipy >= 0.12
+matplotlib >= 0.15
