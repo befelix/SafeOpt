@@ -124,6 +124,15 @@ class GaussianProcessOptimization(object):
                 fig = plt.figure()
                 ax = fig.gca()
                 output, var = self.gp.predict(inputs)
+                if np.all(output == output[0, 0]):
+                    plt.xlim(self.bounds[0])
+                    plt.ylim(self.bounds[1])
+                    return None
+                print(np.linspace(self.bounds[0][0],
+                                           self.bounds[0][1],
+                                           n_samples[0]).shape)
+                print(output.shape)
+                print(n_samples)
                 c = ax.contour(np.linspace(self.bounds[0][0],
                                            self.bounds[0][1],
                                            n_samples[0]),
@@ -134,7 +143,7 @@ class GaussianProcessOptimization(object):
                                20)
                 plt.colorbar(c)
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
-                # self.gp.plot(plot_limits=np.array(self.bounds).T, ax=axis)
+                # self.gp.plot(plot_limits=np.array(self.bounds).T, ax=ax)
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
