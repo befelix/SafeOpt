@@ -306,6 +306,19 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Switch to use confidence intervals for safety
         self.use_confidence_safety = False
+        self._use_only_confidence_safety = False
+
+    @property
+    def use_only_confidence_safety(self):
+        return self._use_only_confidence_safety
+
+    @use_only_confidence_safety.setter
+    def use_only_confidence_safety(self, value):
+        if value:
+            self.use_confidence_safety = True
+            self._use_only_confidence_safety = True
+        else:
+            self._use_only_confidence_safety = False
 
     def compute_new_query_point_discrete(self):
         """
@@ -347,7 +360,10 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Apply Lipschitz constant to determine new safe points
         safe_id = np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
         if self.use_confidence_safety:
-            self.S[~self.S] = np.logical_or(safe_id, l[~self.S] >= self.fmin)
+            if self.use_only_confidence_safety:
+                self.S[~self.S] = l[~self.S] >= self.fmin
+            else:
+                self.S[~self.S] = np.logical_or(safe_id, l[~self.S] >= self.fmin)
         else:
             self.S[~self.S] = safe_id
 
