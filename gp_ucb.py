@@ -128,11 +128,6 @@ class GaussianProcessOptimization(object):
                     plt.xlim(self.bounds[0])
                     plt.ylim(self.bounds[1])
                     return None
-                print(np.linspace(self.bounds[0][0],
-                                           self.bounds[0][1],
-                                           n_samples[0]).shape)
-                print(output.shape)
-                print(n_samples)
                 c = ax.contour(np.linspace(self.bounds[0][0],
                                            self.bounds[0][1],
                                            n_samples[0]),
