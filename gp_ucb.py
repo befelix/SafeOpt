@@ -65,8 +65,12 @@ class GaussianProcessOptimization(object):
         self.y_max = -np.inf
 
         # Create test inputs for optimization
+        if not isinstance(num_samples, Sequence):
+            self.num_samples = [num_samples] * len(self.bounds)
+        else:
+            self.num_samples = num_samples
         self.inputs = create_linearly_spaced_combinations(self.bounds,
-                                                          num_samples)
+                                                          self.num_samples)
 
         self.optimization_finished = False
 
@@ -77,7 +81,7 @@ class GaussianProcessOptimization(object):
         else:
             return self.gp.likelihood
 
-    def plot(self, axis=None):
+    def plot(self, axis=None, n_samples=None, plot_3d=False):
         """
         Plot the current state of the optimization.
 
@@ -90,32 +94,64 @@ class GaussianProcessOptimization(object):
         if self.kernel.input_dim > 2:
             return None
 
+        if n_samples is None:
+            inputs = self.inputs
+            n_samples = self.num_samples
+        else:
+            inputs = create_linearly_spaced_combinations(self.bounds,
+                                                         n_samples)
+            if not isinstance(n_samples, Sequence):
+                n_samples = [n_samples] * len(self.bounds)
+
         if self.kernel.input_dim > 1:   # 3D plot
             if self.gp is None:
                 return None
-            else:
-                # Use 2D plot, 3D is too slow
-                self.gp.plot(plot_limits=np.array(self.bounds).T, ax=axis)
-                return None
+
+            if plot_3d:
                 fig = plt.figure()
                 ax = Axes3D(fig)
 
-                output, var = self.gp.predict(self.inputs)
+                output, var = self.gp.predict(inputs)
                 # output += 2 * np.sqrt(var)
 
-                ax.plot_trisurf(self.inputs[:, 0], self.inputs[:, 1],
-                                output[:, 0],
+                ax.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
                                 cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
+
+            else:
+                # Use 2D plot, 3D is too slow
+                fig = plt.figure()
+                ax = fig.gca()
+                output, var = self.gp.predict(inputs)
+                c = ax.contour(np.linspace(self.bounds[0][0],
+                                           self.bounds[0][1],
+                                           n_samples[0]),
+                               np.linspace(self.bounds[1][0],
+                                           self.bounds[1][1],
+                                           n_samples[1]),
+                               output.reshape(*n_samples),
+                               20)
+                plt.colorbar(c)
+                ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
+                # self.gp.plot(plot_limits=np.array(self.bounds).T, ax=axis)
+
         else:   # 2D plots with uncertainty
             if self.gp is None:
-                x = np.linspace(self.bounds[0][0], self.bounds[0][1], 50)
-                K = self.kernel.Kdiag(x[:, None])
+                K = self.kernel.Kdiag(inputs)
                 std_dev = np.sqrt(K)
-                plt.fill_between(x, -std_dev, std_dev, facecolor='blue',
-                                 alpha=0.5, axis=axis)
+                plt.fill_between(inputs[:, 0], -std_dev, std_dev,
+                                 facecolor='blue',
+                                 alpha=0.1)
             else:
+                # output, var = self.gp.predict(inputs)
+                # output = output.squeeze()
+                # std_dev = np.sqrt(var.squeeze())
+                # plt.fill_between(inputs[:, 0], output - std_dev,
+                #                  output + std_dev,
+                #                  facecolor='blue',
+                #                  alpha=0.1)
+                # plt.plot(inputs[:, 0], output)
                 self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
                              ax=axis)
 
@@ -266,7 +302,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Switch to use confidence intervals for safety
         self.use_confidence_safety = False
-
 
     def compute_new_query_point_discrete(self):
         """
