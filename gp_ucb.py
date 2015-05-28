@@ -50,7 +50,8 @@ class GaussianProcessOptimization(object):
 
     Handles common functionality.
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples,
+                 beta):
         super(GaussianProcessOptimization, self).__init__()
 
         self.kernel = kernel
@@ -64,6 +65,13 @@ class GaussianProcessOptimization(object):
         self.x_max = None
         self.y_max = -np.inf
 
+        if hasattr(beta, '__call__'):
+            # Beta is a function of t
+            self.beta = beta
+        else:
+            # Assume that beta is a constant
+            self.beta = lambda t: beta
+
         # Create test inputs for optimization
         if not isinstance(num_samples, Sequence):
             self.num_samples = [num_samples] * len(self.bounds)
@@ -73,6 +81,9 @@ class GaussianProcessOptimization(object):
                                                           self.num_samples)
 
         self.optimization_finished = False
+
+        # Time step
+        self.t = 0
 
     @property
     def likelihood(self):
@@ -175,6 +186,9 @@ class GaussianProcessOptimization(object):
             self.gp.set_XY(np.vstack([self.gp.X, x]),
                            np.vstack([self.gp.Y, y]))
 
+        # Increment time step
+        self.t += 1
+
 
 class GaussianProcessUCB(GaussianProcessOptimization):
     """
@@ -192,15 +206,19 @@ class GaussianProcessUCB(GaussianProcessOptimization):
     likelihood: instance of GPy.likelihoods.*
     num_samples: integer or list of integers
         Number of data points to use for the optimization and plotting
+    beta: float or callable
+        A constant or a function of the time step that scales the confidence
+        interval of the acquisition function.
 
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples,
+                 beta=3.0):
         super(GaussianProcessUCB, self).__init__(function, bounds, kernel,
-                                                 likelihood, num_samples)
+                                                 likelihood, num_samples, beta)
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
-        beta = 3.
+        beta = self.beta(self.t)
         x = np.atleast_2d(x)
 
         mu, var = self.gp.predict(x)
@@ -274,12 +292,16 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         Safety threshold for the function value
     x0: float
         Initial point for the optimization
+    beta: float or callable
+        A constant or a function of the time step that scales the confidence
+        interval of the acquisition function.
 
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples, fmin,
-                 x0, L):
+    def __init__(self, function, bounds, kernel, likelihood, num_samples,
+                 fmin, x0, L, beta=3.0):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
-                                                     likelihood, num_samples)
+                                                     likelihood, num_samples,
+                                                     beta)
         self.fmin = fmin
         self.liptschitz = L
 
@@ -332,7 +354,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         if self.gp is None:
             raise RuntimeError('self.gp should be initialized at this point.')
 
-        beta = 3.
+        beta = self.beta(self.t)
 
         # Evaluate acquisition function
         mean, var = self.gp.predict(self.inputs)
