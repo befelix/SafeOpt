@@ -153,8 +153,8 @@ class GaussianProcessOptimization(object):
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
-                K = self.kernel.Kdiag(inputs)
-                std_dev = np.sqrt(K)
+                gram_diag = self.kernel.Kdiag(inputs)
+                std_dev = np.sqrt(gram_diag)
                 plt.fill_between(inputs[:, 0], -std_dev, std_dev,
                                  facecolor='blue',
                                  alpha=0.1)
@@ -178,7 +178,7 @@ class GaussianProcessOptimization(object):
             # Initialize GP
             inference_method = GPy.inference.latent_function_inference.\
                 exact_gaussian_inference.ExactGaussianInference()
-            self.gp = GPy.core.GP(X=x,Y=y, kernel=self.kernel,
+            self.gp = GPy.core.GP(X=x, Y=y, kernel=self.kernel,
                                   inference_method=inference_method,
                                   likelihood=self.likelihood)
         else:
@@ -298,12 +298,12 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
     """
     def __init__(self, function, bounds, kernel, likelihood, num_samples,
-                 fmin, x0, L, beta=3.0):
+                 fmin, x0, lipschitz, beta=3.0):
         super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
                                                      likelihood, num_samples,
                                                      beta)
         self.fmin = fmin
-        self.liptschitz = L
+        self.liptschitz = lipschitz
 
         # make sure initial point is in optimization points
         self.inputs = np.vstack([np.atleast_2d(x0), self.inputs])
@@ -497,6 +497,6 @@ def sample_gp_function(kernel, bounds, noise, num_samples):
             return inputs, output
         x = np.atleast_2d(x)
         return griddata(inputs, output, x, method='linear') + \
-               np.sqrt(noise) * np.random.randn(x.shape[0], 1)
+            np.sqrt(noise) * np.random.randn(x.shape[0], 1)
 
     return evaluate_gp_function
