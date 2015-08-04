@@ -135,7 +135,7 @@ class GaussianProcessOptimization(object):
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
 
             else:
-                # Use 2D plot, 3D is too slow
+                # Use 2D level set plot, 3D is too slow
                 fig = plt.figure()
                 ax = fig.gca()
                 output, var = self.gp.predict(inputs)
@@ -153,26 +153,26 @@ class GaussianProcessOptimization(object):
                                20)
                 plt.colorbar(c)
                 ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
-                # self.gp.plot(plot_limits=np.array(self.bounds).T, ax=ax)
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
                 gram_diag = self.kernel.Kdiag(inputs)
-                std_dev = np.sqrt(gram_diag)
+                std_dev = self.beta(self.t) * np.sqrt(gram_diag)
                 plt.fill_between(inputs[:, 0], -std_dev, std_dev,
                                  facecolor='blue',
                                  alpha=0.1)
             else:
-                # output, var = self.gp.predict(inputs)
-                # output = output.squeeze()
-                # std_dev = np.sqrt(var.squeeze())
-                # plt.fill_between(inputs[:, 0], output - std_dev,
-                #                  output + std_dev,
-                #                  facecolor='blue',
-                #                  alpha=0.1)
-                # plt.plot(inputs[:, 0], output)
-                self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
-                             ax=axis)
+                output, var = self.gp.predict(inputs[1:, :])
+                output = output.squeeze()
+                std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
+                plt.fill_between(inputs[1:, 0], output - std_dev,
+                                 output + std_dev,
+                                 facecolor='blue',
+                                 alpha=0.3)
+                plt.plot(inputs[1:, 0], output)
+                plt.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
+                # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
+                #              ax=axis)
 
     def add_new_data_point(self, x, y):
         """Add a new function observation to the gp"""
