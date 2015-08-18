@@ -175,7 +175,7 @@ class GaussianProcessOptimization(object):
                 #              ax=axis)
 
     def add_new_data_point(self, x, y):
-        """Add a new function observation to the gp"""
+        """Add a new function observation to the GP."""
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
         if self.gp is None:
@@ -192,6 +192,11 @@ class GaussianProcessOptimization(object):
 
         # Increment time step
         self.t += 1
+
+    def remove_last_data_point(self):
+        """Remove the data point that was last added to the GP."""
+        self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
+        self.t -= 1
 
 
 class GaussianProcessUCB(GaussianProcessOptimization):
@@ -258,7 +263,7 @@ class GaussianProcessUCB(GaussianProcessOptimization):
     def optimize(self):
         """Run one step of bayesian optimization."""
         # Get new input value
-        x = self.compute_new_query_point_discrete()
+        x = self.compute_new_query_point()
         # Sample noisy output
         value = self.function(x)
         # Add data point to the GP
@@ -435,7 +440,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
                 mean2, var2 = self.gp.predict(self.inputs[~self.S])
 
                 # Remove the fake data point from the GP again
-                self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
+                self.remove_last_data_point()
 
                 mean2 = mean2.squeeze()
                 var2 = var2.squeeze()
