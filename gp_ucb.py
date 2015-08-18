@@ -6,6 +6,7 @@ Author: Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
+import sys
 import numpy as np                          # ...
 import GPy                                  # GPs
 import matplotlib.pyplot as plt             # Plotting
@@ -14,6 +15,11 @@ from matplotlib import cm                   # 3D plot colors
 from scipy.spatial.distance import cdist    # Efficient distance computation
 from scipy.interpolate import griddata      # For sampling GP functions
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
+
+
+# For python 2 (python 3 is not yet supported by GPy)
+if sys.version_info[0] < 3:
+    range = xrange
 
 
 def create_linearly_spaced_combinations(bounds, num_samples):
@@ -416,25 +422,54 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         else:
             s = self.S
 
-        if self.use_confidence_sets:
-            if not full_sets:
-                # Sort, element with largest variance first
-                sort_index = np.flipud((Q_u[s] - Q_l[s]).argsort())
+        # no points to evalute for G, exit
+        if not np.any(s):
+            return
 
-                # Id to restore original order
-                unsort_index = np.empty_like(sort_index)
-                unsort_index[sort_index] = np.arange(len(sort_index))
-            else:
-                sort_index = unsort_index = self.S
+        def sort_generator(array):
+            """Return the indeces of the biggest elements in order.
+
+            Avoids sorting everything, only sort the relevant parts at a time.
+
+            Parameters:
+            ----------
+            array: 1d-array
+                The array which we want to sort and iterate over
+
+            Returns:
+            iterable:
+                Indeces of the largest elements in order
+            """
+            sort_id = np.argpartition(array, -1)
+            yield sort_id[-1]
+            for i in range(1, len(array)):
+                sort_id[:-i] =\
+                    sort_id[:-i][np.argpartition(array[sort_id[:-i]], -1)]
+                yield sort_id[-i-1]
+
+        # # Rather than using a generator we could just straight out sort.
+        # # This is faster if we have to check more than log(n) points as
+        # # expanders before finding one
+        # def sort_generator(array):
+        #     """Return the sorted array, largest element first."""
+        #     return array.argsort()[::-1]
+
+        if self.use_confidence_sets:
 
             # set of safe expanders
             G_safe = np.zeros(np.count_nonzero(s), dtype=np.bool)
 
-            # Iterate over all expander candidates
-            for i, (x, y) in enumerate(zip(self.inputs[s, :][sort_index, :],
-                                           Q_u[s][sort_index])):
+            if not full_sets:
+                # Sort, element with largest variance first
+                sort_index = sort_generator(Q_u[s] - Q_l[s])
+            else:
+                # Sort index is just an enumeration of all safe states
+                sort_index = range(len(G_safe))
+
+            for index in sort_index:
                 # Add safe point with it's max possible value to the gp
-                self.add_new_data_point(x, y)
+                self.add_new_data_point(self.inputs[s, :][index],
+                                        Q_u[s][index])
 
                 # Prediction of unsafe points based on that
                 mean2, var2 = self.gp.predict(self.inputs[~self.S])
@@ -448,17 +483,18 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
                 # If the unsafe lower bound is suddenly above fmin: expander
                 if np.any(l2 >= self.fmin):
-                    G_safe[i] = True
+                    G_safe[index] = True
                     # Since we sorted by uncertainty and only the most
                     # uncertain element gets picked by SafeOpt anyways, we can
                     # stop after we found the first one
                     if not full_sets:
                         break
 
-            self.G[s] = G_safe[unsort_index]
+            self.G[s] = G_safe
+
         else:
             # Doing the same partial-prediction stuff as above is possible,
-            # but not implemented since numpy is super fast anyways
+            # but not implemented since numpy is pretty fast anyways
             d = cdist(self.inputs[s], self.inputs[~self.S])
             self.G[s] = np.any(
                 C_u[s, None] - self.liptschitz * d >= self.fmin, 1)
