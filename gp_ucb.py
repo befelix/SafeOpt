@@ -396,21 +396,23 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # Optimistic set of possible expanders
         self.G[:] = False
 
+        # For the run of the algorithm we do not need to calculate the
+        # full set of potential expanders:
+        # We can skip the ones already in M and ones that have lower
+        # variance than the maximum variance in M, max_var.
+        # Amongst the remaining ones we only need to find the
+        # potential expander with maximum variance
+        if not full_sets:
+            # skip points in M
+            s = np.logical_and(self.S, ~self.M)
+
+            # Remove points with a variance that is too small
+            s[s] = Q_u[s] - Q_l[s] > max_var
+        else:
+            s = self.S
+
         if self.use_confidence_sets:
-
-            # For the run of the algorithm we do not need to calculate the
-            # full set of potential expanders:
-            # We can skip the ones already in M and ones that have lower
-            # variance than the maximum variance in M, max_var.
-            # Amongst the remaining ones we only need to find the
-            # potential expander with maximum variance
             if not full_sets:
-                # skip points in M
-                s = np.logical_and(self.S, ~self.M)
-
-                # Remove points with a variance that is too small
-                s[s] = Q_u[s] - Q_l[s] > max_var
-
                 # Sort, element with largest variance first
                 sort_index = np.flipud((Q_u[s] - Q_l[s]).argsort())
 
@@ -418,7 +420,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
                 unsort_index = np.empty_like(sort_index)
                 unsort_index[sort_index] = np.arange(len(sort_index))
             else:
-                s = self.S
                 sort_index = unsort_index = self.S
 
             # set of safe expanders
@@ -453,9 +454,9 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         else:
             # Doing the same partial-prediction stuff as above is possible,
             # but not implemented since numpy is super fast anyways
-            d = cdist(self.inputs[self.S], self.inputs[~self.S])
-            self.G[self.S] = np.any(
-                C_u[self.S, None] - self.liptschitz * d >= self.fmin, 1)
+            d = cdist(self.inputs[s], self.inputs[~self.S])
+            self.G[s] = np.any(
+                C_u[s, None] - self.liptschitz * d >= self.fmin, 1)
 
     def compute_new_query_point(self):
         """
