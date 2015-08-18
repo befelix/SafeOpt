@@ -238,7 +238,7 @@ class GaussianProcessUCB(GaussianProcessOptimization):
 
         return -value.squeeze(), -gradient
 
-    def compute_new_query_point_discrete(self):
+    def compute_new_query_point(self):
         """
         Computes a new point at which to evaluate the function.
 
@@ -263,11 +263,6 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         value = self.function(x)
         # Add data point to the GP
         self.add_new_data_point(x, value)
-
-        # Keep track of best observed value (not necessarily the maximum)
-        if value > self.y_max:
-            self.y_max = value
-            self.x_max = np.atleast_1d(x)
 
 
 def _nearest_neighbour(data, x):
