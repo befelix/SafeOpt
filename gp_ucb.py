@@ -66,9 +66,17 @@ class GaussianProcessOptimization(object):
     gp: GPy Gaussian process or a sequence
         Either a gp from GPy, or a list of (kernel, likelihood) which are
         instances of GPy.kern.* and GPy.likelihoods.*
+    bounds: array_like of tuples
+        An array of tuples where each tuple consists of the lower and upper
+        bound on the optimization variable. E.g. for two variables, x1 and
+        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
+    num_samples: integer or list of integers
+        Number of data points to use for the optimization and plotting
+    beta: float or callable
+        A constant or a function of the time step that scales the confidence
+        interval of the acquisition function.
     """
-    def __init__(self, function, gp, bounds, num_samples,
-                 beta):
+    def __init__(self, function, gp, bounds, num_samples, beta):
         super(GaussianProcessOptimization, self).__init__()
 
         if isinstance(gp, Sequence):
@@ -290,7 +298,7 @@ def _nearest_neighbour(data, x):
 
 class GaussianProcessSafeOpt(GaussianProcessOptimization):
     """
-    A class to maximize a function using GP-UCB.
+    A class to maximize a function using the adapted or original SafeOpt alg.
 
     Parameters
     ---------
