@@ -332,29 +332,34 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
-
-        # Get initial value and add it to the GP and the safe set
-        value = self.function(self.inputs[0, :])
-        if value < fmin:
+        if np.any(self.gp.Y <= self.fmin):
             raise ValueError('Initial point is unsafe')
-        else:
-            self.add_new_data_point(self.inputs[0, :], value)
-            self.S[0] = True
 
         # Switch to use confidence intervals for safety
         if lipschitz is None:
-            self.use_confidence_safety = True
-            self.use_confidence_sets = True
+            self._use_lipschitz = False
         else:
-            self.use_confidence_safety = False
-            self.use_confidence_sets = True
+            self._use_lipschitz = True
             self.S[:self.gp.X.shape[0]] = True
+
+        # Whether to use self-contained sets (only really needed for proof)
+        self.use_contained_sets = False
 
         self.C[self.S, 0] = self.fmin
 
         # Set of expanders and maximizers
         self.G = np.zeros_like(self.S, dtype=np.bool)
         self.M = self.G.copy()
+
+    @property
+    def use_lipschitz(self):
+        return self._use_lipschitz
+
+    @use_lipschitz.setter
+    def use_lipschitz(self, value):
+        if value and self.liptschitz is None:
+            raise ValueError('Lipschitz constant not defined')
+        self._use_lipschitz = value
 
     def compute_sets(self, full_sets=False):
         """
@@ -381,36 +386,32 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         self.Q[:, 0] = mean - beta * std_dev
         self.Q[:, 1] = mean + beta * std_dev
 
-        Q_l, Q_u = self.Q.T
-
         # Update confidence intervals if they're being used
-        if not (self.use_confidence_sets and self.use_confidence_safety):
-            # Convenient views on C (changing them will change C)
+        if self.use_contained_sets:
+            # Convenient views on C and Q
             C_l, C_u = self.C.T
+            Q_l, Q_u = self.Q.T
 
             # Update value interval, make sure C(t+1) is contained in C(t)
             self.C[:, 0] = np.where(C_l < Q_l, np.min([Q_l, C_u], 0), C_l)
             self.C[:, 1] = np.where(C_u > Q_u, np.max([Q_u, C_l], 0), C_u)
 
-        # Expand safe set
-        if self.use_confidence_safety:
-            self.S[:] = Q_l >= self.fmin
+            l, u = self.C.T
         else:
+            l, u = self.Q.T
+
+        # Expand safe set
+        if self.use_lipschitz:
             # Euclidean distance between all safe and unsafe points
             d = cdist(self.inputs[self.S], self.inputs[~self.S])
 
             # Apply Lipschitz constant to determine new safe points
             self.S[~self.S] = \
-                np.any(C_l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
+                np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
+        else:
+            self.S[:] = l >= self.fmin
 
         # Set of possible maximisers
-
-        # Get lower and upper bounds
-        if self.use_confidence_sets:
-            l, u = self.Q.T
-        else:
-            l, u = self.C.T
-
         # Maximizers: safe upper bound above best, safe lower bound
         self.M[:] = False
         self.M[self.S] = u[self.S] >= np.max(l[self.S])
@@ -425,14 +426,14 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         # variance than the maximum variance in M, max_var.
         # Amongst the remaining ones we only need to find the
         # potential expander with maximum variance
-        if not full_sets:
+        if full_sets:
+            s = self.S
+        else:
             # skip points in M
             s = np.logical_and(self.S, ~self.M)
 
             # Remove points with a variance that is too small
-            s[s] = Q_u[s] - Q_l[s] > max_var
-        else:
-            s = self.S
+            s[s] = u[s] - l[s] > max_var
 
         # no points to evalute for G, exit
         if not np.any(s):
@@ -477,7 +478,11 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             sort_index = range(len(G_safe))
 
         for index in sort_index:
-            if self.use_confidence_sets:
+            if self.use_lipschitz:
+                d = cdist(self.inputs[s, :][[index], :],
+                          self.inputs[~self.S, :])
+                l2 = u[s][index] - self.liptschitz * d
+            else:
                 # Add safe point with it's max possible value to the gp
                 self.add_new_data_point(self.inputs[s, :][index, :],
                                         u[s][index])
@@ -491,10 +496,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
                 mean2 = mean2.squeeze()
                 var2 = var2.squeeze()
                 l2 = mean2 - beta * np.sqrt(var2)
-            else:
-                d = cdist(self.inputs[s, :][[index], :],
-                          self.inputs[~self.S, :])
-                l2 = u[s][index] - self.liptschitz * d
 
             # If the unsafe lower bound is suddenly above fmin: expander
             if np.any(l2 >= self.fmin):
@@ -520,10 +521,10 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         sets M and G.
         """
         # Get lower and upper bounds
-        if self.use_confidence_sets:
-            l, u = self.Q.T
-        else:
+        if self.use_contained_sets:
             l, u = self.C.T
+        else:
+            l, u = self.Q.T
 
         MG = np.logical_or(self.M, self.G)
         value = u[MG] - l[MG]
@@ -552,12 +553,13 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             Maximum value
 
         """
-        if self.use_confidence_sets:
-            max_id = np.argmax(self.Q[:, 0])
-            return self.inputs[max_id, :], self.Q[max_id, 0]
+        if self.use_contained_sets:
+            l = self.C[:, 0]
         else:
-            max_id = np.argmax(self.C[:, 0])
-            return self.inputs[max_id, :], self.C[max_id, 0]
+            l = self.Q[:, 0]
+
+        max_id = np.argmax(self.l)
+        return self.inputs[max_id, :], l[max_id]
 
 
 def get_hyperparameters(function, bounds, num_samples, kernel,
@@ -631,8 +633,9 @@ def sample_gp_function(kernel, bounds, noise, num_samples):
         returns the corresponding noisy function values
     """
     inputs = create_linearly_spaced_combinations(bounds, num_samples)
+    cov = kernel.K(inputs) + np.eye(inputs.shape[0]) * noise
     output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
-                                           kernel.K(inputs))
+                                           cov)
 
     def evaluate_gp_function(x, return_data=False):
         if return_data:
