@@ -347,7 +347,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             self.use_confidence_sets = True
         else:
             self.use_confidence_safety = False
-            self.use_confidence_sets = False
+            self.use_confidence_sets = True
             self.S[:self.gp.X.shape[0]] = True
 
         self.C[self.S, 0] = self.fmin
@@ -457,7 +457,7 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             for i in range(1, len(array)):
                 sort_id[:-i] =\
                     sort_id[:-i][np.argpartition(array[sort_id[:-i]], -1)]
-                yield sort_id[-i-1]
+                yield sort_id[-i - 1]
 
         # # Rather than using a generator we could just straight out sort.
         # # This is faster if we have to check more than log(n) points as
@@ -466,22 +466,21 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         #     """Return the sorted array, largest element first."""
         #     return array.argsort()[::-1]
 
-        if self.use_confidence_sets:
+        # set of safe expanders
+        G_safe = np.zeros(np.count_nonzero(s), dtype=np.bool)
 
-            # set of safe expanders
-            G_safe = np.zeros(np.count_nonzero(s), dtype=np.bool)
+        if not full_sets:
+            # Sort, element with largest variance first
+            sort_index = sort_generator(u[s] - l[s])
+        else:
+            # Sort index is just an enumeration of all safe states
+            sort_index = range(len(G_safe))
 
-            if not full_sets:
-                # Sort, element with largest variance first
-                sort_index = sort_generator(Q_u[s] - Q_l[s])
-            else:
-                # Sort index is just an enumeration of all safe states
-                sort_index = range(len(G_safe))
-
-            for index in sort_index:
+        for index in sort_index:
+            if self.use_confidence_sets:
                 # Add safe point with it's max possible value to the gp
-                self.add_new_data_point(self.inputs[s, :][index],
-                                        Q_u[s][index])
+                self.add_new_data_point(self.inputs[s, :][index, :],
+                                        u[s][index])
 
                 # Prediction of unsafe points based on that
                 mean2, var2 = self.gp.predict(self.inputs[~self.S])
@@ -492,24 +491,28 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
                 mean2 = mean2.squeeze()
                 var2 = var2.squeeze()
                 l2 = mean2 - beta * np.sqrt(var2)
+            else:
+                d = cdist(self.inputs[s, :][[index], :],
+                          self.inputs[~self.S, :])
+                l2 = u[s][index] - self.liptschitz * d
 
-                # If the unsafe lower bound is suddenly above fmin: expander
-                if np.any(l2 >= self.fmin):
-                    G_safe[index] = True
-                    # Since we sorted by uncertainty and only the most
-                    # uncertain element gets picked by SafeOpt anyways, we can
-                    # stop after we found the first one
-                    if not full_sets:
-                        break
+            # If the unsafe lower bound is suddenly above fmin: expander
+            if np.any(l2 >= self.fmin):
+                G_safe[index] = True
+                # Since we sorted by uncertainty and only the most
+                # uncertain element gets picked by SafeOpt anyways, we can
+                # stop after we found the first one
+                if not full_sets:
+                    break
 
-            self.G[s] = G_safe
+        self.G[s] = G_safe
 
-        else:
-            # Doing the same partial-prediction stuff as above is possible,
-            # but not implemented since numpy is pretty fast anyways
-            d = cdist(self.inputs[s], self.inputs[~self.S])
-            self.G[s] = np.any(
-                C_u[s, None] - self.liptschitz * d >= self.fmin, 1)
+        # else:
+        #     # Doing the same partial-prediction stuff as above is possible,
+        #     # but not implemented since numpy is pretty fast anyways
+        #     d = cdist(self.inputs[s], self.inputs[~self.S])
+        #     self.G[s] = np.any(
+        #         C_u[s, None] - self.liptschitz * d >= self.fmin, 1)
 
     def compute_new_query_point(self):
         """
