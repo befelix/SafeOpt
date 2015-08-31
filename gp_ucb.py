@@ -59,21 +59,29 @@ class GaussianProcessOptimization(object):
     Base class for GP optimization.
 
     Handles common functionality.
+
+    Parameters:
+    function: object
+        A function that returns the current value that we want to optimize.
+    gp: GPy Gaussian process or a sequence
+        Either a gp from GPy, or a list of (kernel, likelihood) which are
+        instances of GPy.kern.* and GPy.likelihoods.*
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples,
+    def __init__(self, function, gp, bounds, num_samples,
                  beta):
         super(GaussianProcessOptimization, self).__init__()
 
-        self.kernel = kernel
-        self.gp = None
+        if isinstance(gp, Sequence):
+            self.gp = None
+            self.kernel = gp[0]
+            self._likelihood = gp[1]
+        else:
+            self.gp = gp
+            self.kernel = gp.kern
+            self._likelihood = gp.likelihood
 
         self.bounds = bounds
         self.function = function
-
-        self._likelihood = likelihood
-
-        self.x_max = None
-        self.y_max = -np.inf
 
         if hasattr(beta, '__call__'):
             # Beta is a function of t
@@ -89,8 +97,6 @@ class GaussianProcessOptimization(object):
             self.num_samples = num_samples
         self.inputs = create_linearly_spaced_combinations(self.bounds,
                                                           self.num_samples)
-
-        self.optimization_finished = False
 
         # Time step
         self.t = 0
@@ -186,10 +192,10 @@ class GaussianProcessOptimization(object):
         y = np.atleast_2d(y)
         if self.gp is None:
             # Initialize GP
-            inference_method = GPy.inference.latent_function_inference.\
-                exact_gaussian_inference.ExactGaussianInference()
+            # inference_method = GPy.inference.latent_function_inference.\
+            #     exact_gaussian_inference.ExactGaussianInference()
             self.gp = GPy.core.GP(X=x, Y=y, kernel=self.kernel,
-                                  inference_method=inference_method,
+                                  # inference_method=inference_method,
                                   likelihood=self.likelihood)
         else:
             # Add data to GP
@@ -217,8 +223,9 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         An array of tuples where each tuple consists of the lower and upper
         bound on the optimization variable. E.g. for two variables, x1 and
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
-    kernel: instance of GPy.kern.*
-    likelihood: instance of GPy.likelihoods.*
+    gp: GPy Gaussian process or a sequence
+        Either a gp from GPy, or a list of (kernel, likelihood) which are
+        instances of GPy.kern.* and GPy.likelihoods.*
     num_samples: integer or list of integers
         Number of data points to use for the optimization and plotting
     beta: float or callable
@@ -226,10 +233,9 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         interval of the acquisition function.
 
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples,
-                 beta=3.0):
-        super(GaussianProcessUCB, self).__init__(function, bounds, kernel,
-                                                 likelihood, num_samples, beta)
+    def __init__(self, function, gp, bounds, num_samples, beta=3.0):
+        super(GaussianProcessUCB, self).__init__(function, gp, bounds,
+                                                 num_samples, beta)
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -290,33 +296,34 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
     ---------
     function: object
         A function that returns the current value that we want to optimize.
+    gp: GPy Gaussian process
+        A Gaussian process which is initialized with safe, initial data points.
     bounds: array_like of tuples
         An array of tuples where each tuple consists of the lower and upper
         bound on the optimization variable. E.g. for two variables, x1 and
         x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
-    kernel: instance of GPy.kern.*
-    likelihood: instance of GPy.likelihoods.*
     num_samples: integer or list of integers
         Number of data points to use for the optimization and plotting
     fmin: float
         Safety threshold for the function value
-    x0: float
-        Initial point for the optimization
+    lipschitz: float
+        The Lipschitz constant of the system, if None the GP confidence
+        intervals are used directly.
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
 
     """
-    def __init__(self, function, bounds, kernel, likelihood, num_samples,
-                 fmin, x0, lipschitz, beta=3.0):
-        super(GaussianProcessSafeUCB, self).__init__(function, bounds, kernel,
-                                                     likelihood, num_samples,
-                                                     beta)
+    def __init__(self, function, gp, bounds, num_samples,
+                 fmin, lipschitz=None, beta=3.0):
+        super(GaussianProcessSafeUCB, self).__init__(function, gp, bounds,
+                                                     num_samples, beta)
+
         self.fmin = fmin
         self.liptschitz = lipschitz
 
         # make sure initial point is in optimization points
-        self.inputs = np.vstack([np.atleast_2d(x0), self.inputs])
+        self.inputs = np.vstack([gp.X, self.inputs])
 
         # Value intervals
         self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
@@ -334,15 +341,20 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
             self.add_new_data_point(self.inputs[0, :], value)
             self.S[0] = True
 
+        # Switch to use confidence intervals for safety
+        if lipschitz is None:
+            self.use_confidence_safety = True
+            self.use_confidence_sets = True
+        else:
+            self.use_confidence_safety = False
+            self.use_confidence_sets = False
+            self.S[:self.gp.X.shape[0]] = True
+
         self.C[self.S, 0] = self.fmin
 
         # Set of expanders and maximizers
         self.G = np.zeros_like(self.S, dtype=np.bool)
         self.M = self.G.copy()
-
-        # Switch to use confidence intervals for safety
-        self.use_confidence_safety = False
-        self.use_confidence_sets = False
 
     def compute_sets(self, full_sets=False):
         """
@@ -524,11 +536,6 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         value = self.function(x)
         # Add data point to the GP
         self.add_new_data_point(x, value)
-
-        # Keep track of best observed value (not necessarily the maximum)
-        if value > self.y_max:
-            self.y_max = value
-            self.x_max = np.atleast_1d(x)
 
     def get_maximum(self):
         """
