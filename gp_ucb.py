@@ -288,7 +288,7 @@ def _nearest_neighbour(data, x):
     return np.argmin(np.sum((data - x) ** 2, 1))
 
 
-class GaussianProcessSafeUCB(GaussianProcessOptimization):
+class GaussianProcessSafeOpt(GaussianProcessOptimization):
     """
     A class to maximize a function using GP-UCB.
 
@@ -314,9 +314,9 @@ class GaussianProcessSafeUCB(GaussianProcessOptimization):
         interval of the acquisition function.
 
     """
-    def __init__(self, function, gp, bounds, num_samples,
-                 fmin, lipschitz=None, beta=3.0):
-        super(GaussianProcessSafeUCB, self).__init__(function, gp, bounds,
+    def __init__(self, function, gp, bounds, num_samples, fmin,
+                 lipschitz=None, beta=3.0):
+        super(GaussianProcessSafeOpt, self).__init__(function, gp, bounds,
                                                      num_samples, beta)
 
         self.fmin = fmin
