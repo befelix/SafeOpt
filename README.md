@@ -1,4 +1,4 @@
-# SafeOpt-robotics
+# SafeOpt - Safe Bayesian Optimization
 
 This code implements an adapted version of the safe, Bayesian optimization algorithm, SafeOpt [1]. It also provides an implementation for the original algorithm in [3]. The code can be used to automatically optimize a performance measures subject to a safety constraint by adapting parameters. The prefered way of citing this code is by referring to [1]. Early results using this code were presented in [2].
 
