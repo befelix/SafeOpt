@@ -1,3 +1,5 @@
 .idea
+_build
 .ipynb_checkpoints
 *.pyc
+*.swp
