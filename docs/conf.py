@@ -17,9 +17,7 @@ import os
 import shlex
 import mock
 
-MOCK_MODULES = ['GPy', 'mpl_toolkits', 'mpl_toolkits.mplot3d', 'matplotlib',
-                'matplotlib.pyplot', 'numpy', 'scipy', 'scipy.interpolate',
-                'scipy.spatial', 'scipy.spatial.distance']
+MOCK_MODULES = ['freetype', 'png']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 

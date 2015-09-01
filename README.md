@@ -1,10 +1,12 @@
-# SafeOpt-robotics
+# SafeOpt - Safe Bayesian Optimization
 
-This code implements an adapted version of the safe, Bayesian optimization algorithm, SafeOpt [1], that can be found in [2]. It can be used to automatically tune parameters subject to a safety constraint. The prefered way of citing this code is by referring to [2].
+This code implements an adapted version of the safe, Bayesian optimization algorithm, SafeOpt [1]. It also provides an implementation for the original algorithm in [3]. The code can be used to automatically optimize a performance measures subject to a safety constraint by adapting parameters. The prefered way of citing this code is by referring to [1]. Early results using this code were presented in [2].
 
-[1] Y. Sui, A. Gotovos, J. W. Burdick, and A. Krause, “Safe exploration for optimization with Gaussian processes” in Proc. of the International Conference on Machine Learning (ICML), 2015, pp. 997–1005.
+[1] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, (submitted).
 
-[2] F. Berkenkamp, A. P. Schoellig, A. Krause, "..." in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, (submitted).
+[2] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Workshop on Machine Learning in Planning and Control of Robot Motion, Proc. of the IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2015.
+
+[3] Y. Sui, A. Gotovos, J. W. Burdick, and A. Krause, “Safe exploration for optimization with Gaussian processes” in Proc. of the International Conference on Machine Learning (ICML), 2015, pp. 997–1005.
 
 ## Installation
 The easiest way to install the necessary python libraries is by installing pip (e.g. ```sudo apt-get install python-pip``` on Ubuntu) and running
