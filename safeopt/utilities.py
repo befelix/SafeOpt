@@ -95,7 +95,7 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     return gp.kern, gp.likelihood
 
 
-def sample_gp_function(kernel, bounds, noise, num_samples):
+def sample_gp_function(kernel, bounds, noise_var, num_samples):
     """
     Sample a function from a gp with corresponding kernel within its bounds.
 
@@ -104,7 +104,7 @@ def sample_gp_function(kernel, bounds, noise, num_samples):
     kernel: instance of GPy.kern.*
     bounds: list of tuples
         [(x1_min, x1_max), (x2_min, x2_max), ...]
-    noise: float
+    noise_var: float
         Variance of the observation noise of the GP function
     num_samples: int or list
         If integer draws the corresponding number of samples in all
@@ -115,19 +115,22 @@ def sample_gp_function(kernel, bounds, noise, num_samples):
     Returns
     -------
     function: object
+        function(x, noise=True)
         A function that takes as inputs new locations x to be evaluated and
-        returns the corresponding noisy function values
+        returns the corresponding noisy function values. If noise=False is
+        set the true function values are returned (useful for plotting).
     """
     inputs = create_linearly_spaced_combinations(bounds, num_samples)
-    cov = kernel.K(inputs) + np.eye(inputs.shape[0]) * noise
+    cov = kernel.K(inputs) + np.eye(inputs.shape[0]) * 1e-6
     output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
                                            cov)
 
-    def evaluate_gp_function(x, return_data=False):
-        if return_data:
-            return inputs, output
+    def evaluate_gp_function(x, noise=True):
         x = np.atleast_2d(x)
-        return griddata(inputs, output, x, method='linear') + \
-            np.sqrt(noise) * np.random.randn(x.shape[0], 1)
+        y = griddata(inputs, output, x, method='linear')
+        y = np.atleast_2d(y)
+        if noise:
+            y += np.sqrt(noise_var) * np.random.randn(x.shape[0], 1)
+        return y
 
     return evaluate_gp_function

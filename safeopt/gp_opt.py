@@ -167,7 +167,14 @@ class GaussianProcessOptimization(object):
                 #              ax=axis)
 
     def add_new_data_point(self, x, y):
-        """Add a new function observation to the GP."""
+        """
+        Add a new function observation to the GP.
+
+        Parameters
+        ----------
+        x: 2d-array
+        y: 2d-array
+        """
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
         if self.gp is None:
@@ -196,7 +203,7 @@ class GaussianProcessUCB(GaussianProcessOptimization):
     A class to maximize a function using GP-UCB.
 
     Parameters
-    ---------
+    ----------
     function: object
         A function that returns the current value that we want to optimize.
     bounds: array_like of tuples
@@ -323,7 +330,7 @@ class SafeOpt(GaussianProcessOptimization):
             self.S[:self.gp.X.shape[0]] = True
 
         # Whether to use self-contained sets (only really needed for proof)
-        self.use_contained_sets = False
+        self._use_contained_sets = False
 
         self.C[self.S, 0] = self.fmin
 
@@ -333,6 +340,14 @@ class SafeOpt(GaussianProcessOptimization):
 
     @property
     def use_lipschitz(self):
+        """
+        Boolean that determines whether to use the Lipschitz constant.
+
+        By default this is set to False, which means the adapted SafeOpt
+        algorithm is used, that uses the GP confidence intervals directly.
+        If set to True, the `self.lipschitz` parameter is used to compute
+        the safe and expanders sets.
+        """
         return self._use_lipschitz
 
     @use_lipschitz.setter
@@ -340,6 +355,23 @@ class SafeOpt(GaussianProcessOptimization):
         if value and self.liptschitz is None:
             raise ValueError('Lipschitz constant not defined')
         self._use_lipschitz = value
+
+    @property
+    def use_contained_sets(self):
+        """
+        Boolean that determines whether to use self-contained sets.
+
+        The original SafeOpt algorithm requires self-contained predictions
+        of the Gaussian process to prove theoretical results. However,
+        in practice this is usually not necessary, so the this parameter
+        defaults to False.
+        """
+        return self._use_contained_sets
+
+    @use_contained_sets.setter
+    def use_contained_sets(self, value):
+        self._use_contained_sets = value
+
 
     def compute_sets(self, full_sets=False):
         """
@@ -390,6 +422,9 @@ class SafeOpt(GaussianProcessOptimization):
                 np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
         else:
             self.S[:] = l >= self.fmin
+
+        if not np.any(self.S):
+            raise EnvironmentError('There are no safe points to evaluate.')
 
         # Set of possible maximisers
         # Maximizers: safe upper bound above best, safe lower bound
