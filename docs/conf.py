@@ -15,6 +15,13 @@
 import sys
 import os
 import shlex
+import mock
+
+MOCK_MODULES = ['GPy', 'mpl_toolkits', 'mpl_toolkits.mplot3d', 'matplotlib',
+                'matplotlib.pyplot', 'numpy', 'scipy', 'scipy.interpolate',
+                'scipy.spatial', 'scipy.spatial.distance']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
