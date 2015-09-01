@@ -18,7 +18,7 @@ from scipy.spatial.distance import cdist    # Efficient distance computation
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 
 
-__all__ = ['GaussianProcessUCB', 'SafeOpt']
+__all__ = ['GaussianProcessUCB', 'SafeOpt', 'GaussianProcessOptimization']
 
 
 # For python 2 (python 3 is not yet supported by GPy)
@@ -33,6 +33,7 @@ class GaussianProcessOptimization(object):
     Handles common functionality.
 
     Parameters:
+    -----------
     function: object
         A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process or a sequence

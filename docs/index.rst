@@ -13,6 +13,9 @@ Contents:
 
 .. automodule:: safeopt
 
+.. autoclass:: GaussianProcessOptimization
+    :members:
+
 .. autoclass:: SafeOpt
     :members:
 
