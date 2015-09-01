@@ -6,6 +6,8 @@ Author: Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
+from .utilities import *
+
 import sys
 import numpy as np                          # ...
 import GPy                                  # GPs
@@ -13,45 +15,15 @@ import matplotlib.pyplot as plt             # Plotting
 from collections import Sequence            # isinstance(...,Sequence)
 from matplotlib import cm                   # 3D plot colors
 from scipy.spatial.distance import cdist    # Efficient distance computation
-from scipy.interpolate import griddata      # For sampling GP functions
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
+
+
+__all__ = ['GaussianProcessUCB', 'SafeOpt']
 
 
 # For python 2 (python 3 is not yet supported by GPy)
 if sys.version_info[0] < 3:
     range = xrange
-
-
-def create_linearly_spaced_combinations(bounds, num_samples):
-    """
-    Return 2-D array with all linearly spaced combinations with the bounds.
-
-    Parameters
-    ----------
-    bounds: sequence of tuples
-        The bounds for the variables, [(x1_min, x1_max), (x2_min, x2_max), ...]
-    num_samples: integer or array_likem
-        Number of samples to use for every dimension. Can be a constant if
-        the same number should be used for all, or an array to fine-tune
-        precision. Total number of data points is num_samples ** len(bounds).
-
-    Returns
-    -------
-    combinations: 2-d array
-        A 2-d arrray. If d = len(bounds) and l = prod(num_samples) then it
-        is of size l x d, that is, every row contains one combination of
-        inputs.
-    """
-    num_vars = len(bounds)
-    if not isinstance(num_samples, Sequence):
-        num_samples = [num_samples] * num_vars
-
-    # Create linearly spaced test inputs
-    inputs = [np.linspace(b[0], b[1], n) for b, n in zip(bounds,
-                                                         num_samples)]
-
-    # Convert to 2-D array
-    return np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
 
 
 class GaussianProcessOptimization(object):
@@ -296,12 +268,12 @@ def _nearest_neighbour(data, x):
     return np.argmin(np.sum((data - x) ** 2, 1))
 
 
-class GaussianProcessSafeOpt(GaussianProcessOptimization):
+class SafeOpt(GaussianProcessOptimization):
     """
     A class to maximize a function using the adapted or original SafeOpt alg.
 
     Parameters
-    ---------
+    ----------
     function: object
         A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process
@@ -324,7 +296,7 @@ class GaussianProcessSafeOpt(GaussianProcessOptimization):
     """
     def __init__(self, function, gp, bounds, num_samples, fmin,
                  lipschitz=None, beta=3.0):
-        super(GaussianProcessSafeOpt, self).__init__(function, gp, bounds,
+        super(SafeOpt, self).__init__(function, gp, bounds,
                                                      num_samples, beta)
 
         self.fmin = fmin
@@ -373,7 +345,7 @@ class GaussianProcessSafeOpt(GaussianProcessOptimization):
         """
         Compute the safe set of points
 
-        Parameters:
+        Parameters
         ----------
         full_sets: boolean
             Whether to compute the full set of expanders or whether to omit
@@ -452,12 +424,13 @@ class GaussianProcessSafeOpt(GaussianProcessOptimization):
 
             Avoids sorting everything, only sort the relevant parts at a time.
 
-            Parameters:
+            Parameters
             ----------
             array: 1d-array
                 The array which we want to sort and iterate over
 
-            Returns:
+            Returns
+            -------
             iterable:
                 Indeces of the largest elements in order
             """
@@ -553,8 +526,8 @@ class GaussianProcessSafeOpt(GaussianProcessOptimization):
         """
         Return the current estimate for the maximum.
 
-        Returns:
-        --------
+        Returns
+        -------
         x - ndarray
             Location of the maximum
         y - 0darray
@@ -568,88 +541,3 @@ class GaussianProcessSafeOpt(GaussianProcessOptimization):
 
         max_id = np.argmax(self.l)
         return self.inputs[max_id, :], l[max_id]
-
-
-def get_hyperparameters(function, bounds, num_samples, kernel,
-                        likelihood=GPy.likelihoods.gaussian.Gaussian()):
-    """
-    Optimize for hyperparameters by sampling inputs from a uniform grid.
-
-    Parameters
-    ----------
-    function: method
-        Returns the function values, needs to be vectorized to accept 2-D
-        arrays as inputs for each variable
-    bounds: array_like of tuples
-        Each tuple consists of the upper and lower bounds of the variable
-    N: integer
-        Number of sample points per dimension, total = N ** len(bounds).
-        Alternatively a list of sample points per dimension.
-    kernel: instance of GPy.kern.*
-    likelihood: instance of GPy.likelihoods.*
-        Defaults to GPy.likelihoods.gaussian.Gaussian()
-
-    Returns
-    -------
-    kernel: instance of GPy.kern.*
-        Kernel with the optimized hyperparameters
-    likelihood: instance of GPy.likelihoods.*
-        Likelihood with the optimized hyperparameters
-
-    Notes
-    -----
-    Constrained optimization of the hyperparameters can be handled by
-    passing a kernel or likelihood with the corresponding constraints.
-    For example:
-    ``likelihood.constrain_fixed(warning=False)`` to fix the observation noise.
-    """
-    inputs = create_linearly_spaced_combinations(bounds, num_samples)
-    output = function(inputs)
-
-    inference_method = GPy.inference.latent_function_inference.\
-        exact_gaussian_inference.ExactGaussianInference()
-
-    gp = GPy.core.GP(X=inputs, Y=output[:, None],
-                     kernel=kernel,
-                     inference_method=inference_method,
-                     likelihood=likelihood)
-    gp.optimize()
-    return gp.kern, gp.likelihood
-
-
-def sample_gp_function(kernel, bounds, noise, num_samples):
-    """
-    Sample a function from a gp with corresponding kernel within its bounds.
-
-    Parameters
-    ----------
-    kernel: instance of GPy.kern.*
-    bounds: list of tuples
-        [(x1_min, x1_max), (x2_min, x2_max), ...]
-    noise: float
-        Variance of the observation noise of the GP function
-    num_samples: int or list
-        If integer draws the corresponding number of samples in all
-        dimensions and test all possible input combinations. If a list then
-        the list entries correspond to the number of linearly spaced samples of
-        the corresponding input
-
-    Returns
-    -------
-    function: object
-        A function that takes as inputs new locations x to be evaluated and
-        returns the corresponding noisy function values
-    """
-    inputs = create_linearly_spaced_combinations(bounds, num_samples)
-    cov = kernel.K(inputs) + np.eye(inputs.shape[0]) * noise
-    output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
-                                           cov)
-
-    def evaluate_gp_function(x, return_data=False):
-        if return_data:
-            return inputs, output
-        x = np.atleast_2d(x)
-        return griddata(inputs, output, x, method='linear') + \
-            np.sqrt(noise) * np.random.randn(x.shape[0], 1)
-
-    return evaluate_gp_function
