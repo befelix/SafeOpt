@@ -9,21 +9,13 @@ Welcome to SafeOpt's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 2 
 
 .. automodule:: safeopt
+   :members:
+   :inherited-members:
+   :undoc-members:
 
-.. autoclass:: GaussianProcessOptimization
-    :members:
-
-.. autoclass:: SafeOpt
-    :members:
-
-.. autoclass:: GaussianProcessUCB
-    :members:
-
-.. autofunction:: create_linearly_spaced_combinations
-.. autofunction:: sample_gp_function
 Indices and tables
 ==================
 
