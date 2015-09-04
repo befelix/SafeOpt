@@ -39,19 +39,17 @@ class GaussianProcessOptimization(object):
     gp: GPy Gaussian process or a sequence
         Either a gp from GPy, or a list of (kernel, likelihood) which are
         instances of GPy.kern.* and GPy.likelihoods.*
-    bounds: array_like of tuples
-        An array of tuples where each tuple consists of the lower and upper
-        bound on the optimization variable. E.g. for two variables, x1 and
-        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
-    num_samples: integer or list of integers
-        Number of data points to use for the optimization and plotting
+    parameter_set: 2d-array
+        List of parameters
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
     """
-    def __init__(self, function, gp, bounds, num_samples, beta):
+    def __init__(self, function, gp, parameter_set, beta):
         super(GaussianProcessOptimization, self).__init__()
 
+        # Normal GP optimization doesn't require an initial sample
+        # GPy can only be instanciated with at least one sample :(
         if isinstance(gp, Sequence):
             self.gp = None
             self.kernel = gp[0]
@@ -60,8 +58,6 @@ class GaussianProcessOptimization(object):
             self.gp = gp
             self.kernel = gp.kern
             self._likelihood = gp.likelihood
-
-        self.bounds = bounds
         self.function = function
 
         if hasattr(beta, '__call__'):
@@ -71,19 +67,33 @@ class GaussianProcessOptimization(object):
             # Assume that beta is a constant
             self.beta = lambda t: beta
 
-        # Create test inputs for optimization
-        if not isinstance(num_samples, Sequence):
-            self.num_samples = [num_samples] * len(self.bounds)
-        else:
-            self.num_samples = num_samples
-        self.inputs = create_linearly_spaced_combinations(self.bounds,
-                                                          self.num_samples)
+        self._inputs = None
+        self.bounds = None
+        self.num_samples = 0
+        self.inputs = parameter_set.copy()
 
         # Time step
         self.t = 0
 
     @property
+    def inputs(self):
+        """Discrete parameter samples for Bayesian optimization."""
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, parameter_set):
+        self._inputs = parameter_set
+
+        # Plotting bounds (min, max value
+        self.bounds = list(zip(np.min(self._inputs, axis=0),
+                               np.max(self._inputs, axis=0)))
+        self.num_samples = [len(np.unique(self._inputs[:, i]))
+                            for i in range(self._inputs.shape[1])]
+
+
+    @property
     def likelihood(self):
+        """The observation likelihood of the GP."""
         if self.gp is None:
             return self._likelihood
         else:
@@ -106,8 +116,8 @@ class GaussianProcessOptimization(object):
             inputs = self.inputs
             n_samples = self.num_samples
         else:
-            inputs = create_linearly_spaced_combinations(self.bounds,
-                                                         n_samples)
+            inputs = linearly_spaced_combinations(self.bounds,
+                                                  n_samples)
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
@@ -207,23 +217,19 @@ class GaussianProcessUCB(GaussianProcessOptimization):
     ----------
     function: object
         A function that returns the current value that we want to optimize.
-    bounds: array_like of tuples
-        An array of tuples where each tuple consists of the lower and upper
-        bound on the optimization variable. E.g. for two variables, x1 and
-        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
     gp: GPy Gaussian process or a sequence
         Either a gp from GPy, or a list of (kernel, likelihood) which are
         instances of GPy.kern.* and GPy.likelihoods.*
-    num_samples: integer or list of integers
-        Number of data points to use for the optimization and plotting
+    parameter_set: 2d-array
+        List of parameters
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
 
     """
-    def __init__(self, function, gp, bounds, num_samples, beta=3.0):
-        super(GaussianProcessUCB, self).__init__(function, gp, bounds,
-                                                 num_samples, beta)
+    def __init__(self, function, gp, parameter_set, beta=3.0):
+        super(GaussianProcessUCB, self).__init__(function, gp, parameter_set,
+                                                 beta)
 
     def acquisition_function(self, x, jac=True):
         """Computes -value and -gradient of the acquisition function at x."""
@@ -286,12 +292,8 @@ class SafeOpt(GaussianProcessOptimization):
         A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process
         A Gaussian process which is initialized with safe, initial data points.
-    bounds: array_like of tuples
-        An array of tuples where each tuple consists of the lower and upper
-        bound on the optimization variable. E.g. for two variables, x1 and
-        x2, with 0 <= x1 <= 3 and 2 <= x2 <= 4 bounds = [(0, 3), (2, 4)]
-    num_samples: integer or list of integers
-        Number of data points to use for the optimization and plotting
+    parameter_set: 2d-array
+        List of parameters
     fmin: float
         Safety threshold for the function value
     lipschitz: float
@@ -302,10 +304,9 @@ class SafeOpt(GaussianProcessOptimization):
         interval of the acquisition function.
 
     """
-    def __init__(self, function, gp, bounds, num_samples, fmin,
+    def __init__(self, function, gp, parameter_set, fmin,
                  lipschitz=None, beta=3.0):
-        super(SafeOpt, self).__init__(function, gp, bounds,
-                                                     num_samples, beta)
+        super(SafeOpt, self).__init__(function, gp, parameter_set, beta)
 
         self.fmin = fmin
         self.liptschitz = lipschitz

@@ -12,11 +12,11 @@ import GPy
 from scipy.interpolate import griddata      # For sampling GP functions
 
 
-__all__ = ['create_linearly_spaced_combinations', 'get_hyperparameters',
+__all__ = ['linearly_spaced_combinations', 'get_hyperparameters',
            'sample_gp_function']
 
 
-def create_linearly_spaced_combinations(bounds, num_samples):
+def linearly_spaced_combinations(bounds, num_samples):
     """
     Return 2-D array with all linearly spaced combinations with the bounds.
 
@@ -81,7 +81,7 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     For example:
     ``likelihood.constrain_fixed(warning=False)`` to fix the observation noise.
     """
-    inputs = create_linearly_spaced_combinations(bounds, num_samples)
+    inputs = linearly_spaced_combinations(bounds, num_samples)
     output = function(inputs)
 
     inference_method = GPy.inference.latent_function_inference.\
@@ -120,7 +120,7 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
         returns the corresponding noisy function values. If noise=False is
         set the true function values are returned (useful for plotting).
     """
-    inputs = create_linearly_spaced_combinations(bounds, num_samples)
+    inputs = linearly_spaced_combinations(bounds, num_samples)
     cov = kernel.K(inputs) + np.eye(inputs.shape[0]) * 1e-6
     output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
                                            cov)
