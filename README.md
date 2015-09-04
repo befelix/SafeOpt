@@ -3,8 +3,8 @@
 This code implements an adapted version of the safe, Bayesian optimization algorithm, SafeOpt [1]. It also provides an implementation for the original algorithm in [3]. The code can be used to automatically optimize a performance measures subject to a safety constraint by adapting parameters. The prefered way of citing this code is by referring to [1]. Early results using this code were presented in [2].
 
 ###### A video of the experiments in [1]:
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=h3zY8AqXflM
-" target="_blank"><img src="http://img.youtube.com/vi/h3zY8AqXflM/0.jpg" 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=GiqNQdzc5TI
+" target="_blank"><img src="http://img.youtube.com/vi/GiqNQdzc5TI/0.jpg" 
 alt="SafeOpt video" width="240" height="180" border="0" /></a>
 
 [1] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, (submitted), <a href="http://arxiv.org/abs/1509.01066" target="_blank">arXiv:1509.01066 [cs.RO]</a>
