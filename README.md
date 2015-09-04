@@ -20,7 +20,9 @@ The easiest way to install the necessary python libraries is by installing pip (
 
 ## Usage
 
-For examples see the two interactive example ipython notebooks.
+For examples see the two interactive example ipython notebooks.<br>
+Additional functions and classes are documented on <a href="http://safeopt.readthedocs.org/en/latest/" target="_blank">Read The Docs</a>.
+<br><br>
 
 The algorithm is implemented in the ```gp_ucb.py``` file. Next to some helper functions, the class ```GaussianProcessSafeOpt``` implements the core algorithm. It can be initialized as
 
