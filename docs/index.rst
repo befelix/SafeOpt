@@ -9,12 +9,13 @@ Welcome to SafeOpt's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2 
+   :maxdepth: 2
 
 .. automodule:: safeopt
    :members:
    :inherited-members:
    :undoc-members:
+   :show-inheritance:
 
 Indices and tables
 ==================
