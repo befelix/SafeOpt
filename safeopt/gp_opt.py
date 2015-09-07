@@ -129,7 +129,7 @@ class GaussianProcessOptimization(object):
                 fig = plt.figure()
                 ax = Axes3D(fig)
 
-                output, var = self.gp.predict(inputs)
+                output, var = self.gp._raw_predict(inputs)
                 # output += 2 * np.sqrt(var)
 
                 ax.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
@@ -141,7 +141,7 @@ class GaussianProcessOptimization(object):
                 # Use 2D level set plot, 3D is too slow
                 fig = plt.figure()
                 ax = fig.gca()
-                output, var = self.gp.predict(inputs)
+                output, var = self.gp._raw_predict(inputs)
                 if np.all(output == output[0, 0]):
                     plt.xlim(self.bounds[0])
                     plt.ylim(self.bounds[1])
@@ -165,7 +165,7 @@ class GaussianProcessOptimization(object):
                                  facecolor='blue',
                                  alpha=0.1)
             else:
-                output, var = self.gp.predict(inputs[1:, :])
+                output, var = self.gp._raw_predict(inputs[1:, :])
                 output = output.squeeze()
                 std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
                 plt.fill_between(inputs[1:, 0], output - std_dev,
@@ -236,7 +236,7 @@ class GaussianProcessUCB(GaussianProcessOptimization):
         beta = self.beta(self.t)
         x = np.atleast_2d(x)
 
-        mu, var = self.gp.predict(x)
+        mu, var = self.gp._raw_predict(x)
         value = mu + beta * np.sqrt(var)
         if not jac:
             return -value.squeeze()
@@ -392,7 +392,7 @@ class SafeOpt(GaussianProcessOptimization):
         beta = self.beta(self.t)
 
         # Evaluate acquisition function
-        mean, var = self.gp.predict(self.inputs)
+        mean, var = self.gp._raw_predict(self.inputs)
         mean = mean.squeeze()
         std_dev = np.sqrt(var.squeeze())
 
@@ -506,7 +506,7 @@ class SafeOpt(GaussianProcessOptimization):
                                         u[s][index])
 
                 # Prediction of unsafe points based on that
-                mean2, var2 = self.gp.predict(self.inputs[~self.S])
+                mean2, var2 = self.gp._raw_predict(self.inputs[~self.S])
 
                 # Remove the fake data point from the GP again
                 self.remove_last_data_point()
