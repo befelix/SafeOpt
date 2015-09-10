@@ -20,7 +20,7 @@ The easiest way to install the necessary python libraries is by installing pip (
 
 ## Usage
 
-For examples see the two interactive example ipython notebooks.<br>
+For examples see the two interactive example ipython notebooks. Make sure that the ```ipywidgets``` module is installed.<br>
 Additional functions and classes are documented on <a href="http://safeopt.readthedocs.org/en/latest/" target="_blank">Read The Docs</a>.
 <br><br>
 
