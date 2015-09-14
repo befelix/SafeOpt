@@ -99,7 +99,7 @@ class GaussianProcessOptimization(object):
         else:
             return self.gp.likelihood
 
-    def plot(self, axis=None, n_samples=None, plot_3d=False):
+    def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False):
         """
         Plot the current state of the optimization.
 
@@ -121,12 +121,16 @@ class GaussianProcessOptimization(object):
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
+        if figure is None:
+            fig = plt.figure()
+        else:
+            fig = figure
+
         if self.kernel.input_dim > 1:   # 3D plot
             if self.gp is None:
                 return None
 
             if plot_3d:
-                fig = plt.figure()
                 ax = Axes3D(fig)
 
                 output, var = self.gp._raw_predict(inputs)
@@ -139,7 +143,6 @@ class GaussianProcessOptimization(object):
 
             else:
                 # Use 2D level set plot, 3D is too slow
-                fig = plt.figure()
                 ax = fig.gca()
                 output, var = self.gp._raw_predict(inputs)
                 if np.all(output == output[0, 0]):
@@ -159,12 +162,14 @@ class GaussianProcessOptimization(object):
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
+                plt.figure(fig)
                 gram_diag = self.kernel.Kdiag(inputs)
                 std_dev = self.beta(self.t) * np.sqrt(gram_diag)
                 plt.fill_between(inputs[:, 0], -std_dev, std_dev,
                                  facecolor='blue',
                                  alpha=0.1)
             else:
+                plt.figure(fig)
                 output, var = self.gp._raw_predict(inputs[1:, :])
                 output = output.squeeze()
                 std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
