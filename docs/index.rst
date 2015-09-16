@@ -6,6 +6,8 @@
 Welcome to SafeOpt's documentation!
 ===================================
 
+.. include::  introduction.rst
+
 Contents:
 
 .. toctree::
