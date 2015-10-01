@@ -162,14 +162,14 @@ class GaussianProcessOptimization(object):
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
-                plt.figure(fig)
+                plt.figure(fig.number)
                 gram_diag = self.kernel.Kdiag(inputs)
                 std_dev = self.beta(self.t) * np.sqrt(gram_diag)
                 plt.fill_between(inputs[:, 0], -std_dev, std_dev,
                                  facecolor='blue',
                                  alpha=0.1)
             else:
-                plt.figure(fig)
+                plt.figure(fig.number)
                 output, var = self.gp._raw_predict(inputs[1:, :])
                 output = output.squeeze()
                 std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
