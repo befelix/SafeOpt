@@ -99,7 +99,8 @@ class GaussianProcessOptimization(object):
         else:
             return self.gp.likelihood
 
-    def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False):
+    def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False,
+             **kwargs):
         """
         Plot the current state of the optimization.
 
@@ -177,7 +178,7 @@ class GaussianProcessOptimization(object):
                                  output + std_dev,
                                  facecolor='blue',
                                  alpha=0.3)
-                plt.plot(inputs[1:, 0], output)
+                plt.plot(inputs[1:, 0], output, **kwargs)
                 plt.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
                 # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
                 #              ax=axis)
