@@ -17,9 +17,22 @@ import os
 import shlex
 import mock
 
-MOCK_MODULES = ['GPy', 'mpl_toolkits', 'mpl_toolkits.mplot3d', 'matplotlib',
-                'matplotlib.pyplot', 'numpy', 'scipy', 'scipy.interpolate',
-                'scipy.spatial', 'scipy.spatial.distance']
+MOCK_MODULES = ['GPy',
+                'GPy.util',
+                'GPy.util.linalg',
+                'GPy.inference',
+                'GPy.inference.latent_function_inference',
+                'GPy.inference.latent_function_inference.posterior',
+                'mpl_toolkits',
+                'mpl_toolkits.mplot3d',
+                'matplotlib',
+                'matplotlib.pyplot',
+                'numpy',
+                'scipy',
+                'scipy.interpolate',
+                'scipy.spatial',
+                'scipy.spatial.distance']
+
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
