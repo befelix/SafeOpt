@@ -10,7 +10,10 @@ from .utilities import *
 
 import sys
 import numpy as np                          # ...
+import scipy as sp
 import GPy                                  # GPs
+from GPy.util.linalg import dpotrs          # For rank-1 updates
+from GPy.inference.latent_function_inference.posterior import Posterior
 import matplotlib.pyplot as plt             # Plotting
 from collections import Sequence            # isinstance(...,Sequence)
 from matplotlib import cm                   # 3D plot colors
@@ -203,15 +206,57 @@ class GaussianProcessOptimization(object):
                                   likelihood=self.likelihood)
         else:
             # Add data to GP
-            self.gp.set_XY(np.vstack([self.gp.X, x]),
-                           np.vstack([self.gp.Y, y]))
+            # self.gp.set_XY(np.vstack([self.gp.X, x]),
+            #                np.vstack([self.gp.Y, y]))
 
+            # Add data row/col to kernel (a, b)
+            # [ K    a ]
+            # [ a.T  b ]
+            #
+            # Now K = L.dot(L.T)
+            # The new Cholesky decomposition is then
+            # L_new = [ L    0 ]
+            #         [ c.T  d ]
+            a = self.gp.kern.K(self.gp.X, x)
+            b = self.gp.kern.K(x, x)
+
+            b += 1e-8 + self.gp.likelihood.gaussian_variance(
+                    self.gp.Y_metadata)
+
+            L = self.gp.posterior.woodbury_chol
+            c = sp.linalg.solve_triangular(self.gp.posterior.woodbury_chol, a,
+                                           lower=True)
+
+            d = np.sqrt(b - c.T.dot(c))
+
+            L_new = np.asfortranarray(
+                    np.bmat([[L, np.zeros_like(c)],
+                             [c.T, d]]))
+
+            K_new = np.bmat([[self.gp.posterior._K, a],
+                          [a.T, b]])
+
+            self.gp.X = np.vstack((self.gp.X, x))
+            self.gp.Y = np.vstack((self.gp.Y, y))
+
+            alpha, _ = dpotrs(L_new, self.gp.Y, lower=1)
+            self.gp.posterior = Posterior(woodbury_chol=L_new,
+                                          woodbury_vector=alpha,
+                                          K=K_new)
         # Increment time step
         self.t += 1
 
     def remove_last_data_point(self):
         """Remove the data point that was last added to the GP."""
-        self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
+        # self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
+        self.gp.X = self.gp.X[:-1, :]
+        self.gp.Y = self.gp.Y[:-1, :]
+        self.gp.posterior = Posterior(
+                woodbury_chol=np.asfortranarray(
+                        self.gp.posterior.woodbury_chol[:-1, :-1]),
+                woodbury_vector=np.asfortranarray(
+                        self.gp.posterior.woodbury_vector[:-1]),
+                K=self.gp.posterior._K[:-1, :-1])
         self.t -= 1
 
 
