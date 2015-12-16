@@ -283,7 +283,15 @@ class GaussianProcessUCB(GaussianProcessOptimization):
                                                  beta)
 
     def acquisition_function(self, x, jac=True):
-        """Computes -value and -gradient of the acquisition function at x."""
+        """Computes -value and -gradient of the acquisition function at x.
+
+        Parameters
+        ----------
+        x: ndarray
+            Point at which to evaluate the acquisition function
+        jac: boolean
+            Whether to return the jacobian as a second argument
+        """
         beta = self.beta(self.t)
         x = np.atleast_2d(x)
 
@@ -424,7 +432,6 @@ class SafeOpt(GaussianProcessOptimization):
     @use_contained_sets.setter
     def use_contained_sets(self, value):
         self._use_contained_sets = value
-
 
     def compute_sets(self, full_sets=False):
         """
@@ -627,5 +634,5 @@ class SafeOpt(GaussianProcessOptimization):
         else:
             l = self.Q[:, 0]
 
-        max_id = np.argmax(self.l)
+        max_id = np.argmax(l)
         return self.inputs[max_id, :], l[max_id]
