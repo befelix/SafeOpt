@@ -21,7 +21,7 @@ from scipy.spatial.distance import cdist    # Efficient distance computation
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 
 
-__all__ = ['GaussianProcessUCB', 'SafeOpt', 'GaussianProcessOptimization']
+__all__ = ['SafeOpt', 'GaussianProcessOptimization']
 
 
 # For python 2 (python 3 is not yet supported by GPy)
@@ -258,87 +258,6 @@ class GaussianProcessOptimization(object):
                         self.gp.posterior.woodbury_vector[:-1]),
                 K=self.gp.posterior._K[:-1, :-1])
         self.t -= 1
-
-
-class GaussianProcessUCB(GaussianProcessOptimization):
-    """
-    A class to maximize a function using GP-UCB.
-
-    Parameters
-    ----------
-    function: object
-        A function that returns the current value that we want to optimize.
-    gp: GPy Gaussian process or a sequence
-        Either a gp from GPy, or a list of (kernel, likelihood) which are
-        instances of GPy.kern.* and GPy.likelihoods.*
-    parameter_set: 2d-array
-        List of parameters
-    beta: float or callable
-        A constant or a function of the time step that scales the confidence
-        interval of the acquisition function.
-
-    """
-    def __init__(self, function, gp, parameter_set, beta=3.0):
-        super(GaussianProcessUCB, self).__init__(function, gp, parameter_set,
-                                                 beta)
-
-    def acquisition_function(self, x, jac=True):
-        """Computes -value and -gradient of the acquisition function at x.
-
-        Parameters
-        ----------
-        x: ndarray
-            Point at which to evaluate the acquisition function
-        jac: boolean
-            Whether to return the jacobian as a second argument
-        """
-        beta = self.beta(self.t)
-        x = np.atleast_2d(x)
-
-        mu, var = self.gp._raw_predict(x)
-        value = mu + beta * np.sqrt(var)
-        if not jac:
-            return -value.squeeze()
-
-        dmu, dvar = self.gp.predictive_gradients(x)
-        gradient = dmu + 0.5 * beta * (var ** -0.5) * dvar.T
-
-        if x.shape[1] > 1:
-            gradient = gradient.squeeze()
-
-        return -value.squeeze(), -gradient
-
-    def compute_new_query_point(self):
-        """
-        Computes a new point at which to evaluate the function.
-
-        The algorithm relies on discretizing all possible values and
-        evaluating all of them. Fast, but memory inefficient.
-        """
-        # GPy is stupid in that it can only be initialized with data,
-        # so just pick a random starting value in the middle
-        if self.gp is None:
-            return np.mean(self.bounds, axis=1)
-
-        # Evaluate acquisition function
-        values = self.acquisition_function(self.inputs, jac=False)
-
-        return self.inputs[np.argmin(values), :]
-
-    def optimize(self):
-        """Run one step of bayesian optimization."""
-        # Get new input value
-        x = self.compute_new_query_point()
-        # Sample noisy output
-        value = self.function(x)
-        # Add data point to the GP
-        self.add_new_data_point(x, value)
-
-
-def _nearest_neighbour(data, x):
-    """Find the id of the nearest neighbour of x in data."""
-    x = np.atleast_2d(x)
-    return np.argmin(np.sum((data - x) ** 2, 1))
 
 
 class SafeOpt(GaussianProcessOptimization):
