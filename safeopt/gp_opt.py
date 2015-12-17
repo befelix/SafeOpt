@@ -48,7 +48,7 @@ class GaussianProcessOptimization(object):
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
     """
-    def __init__(self, function, gp, parameter_set, beta):
+    def __init__(self, function, gp, parameter_set, beta, num_contexts):
         super(GaussianProcessOptimization, self).__init__()
 
         # Normal GP optimization doesn't require an initial sample
@@ -73,7 +73,14 @@ class GaussianProcessOptimization(object):
         self._inputs = None
         self.bounds = None
         self.num_samples = 0
+        self.num_contexts = num_contexts
         self.inputs = parameter_set.copy()
+
+        if self.num_contexts > 0:
+            context_shape = (self.inputs.shape[0], self.num_contexts)
+            self.inputs = np.hstack((self.inputs,
+                                     np.empty(context_shape,
+                                              dtype=self.inputs.dtype)))
 
         # Time step
         self.t = 0
@@ -142,7 +149,7 @@ class GaussianProcessOptimization(object):
             else:
                 axis = fig.gca()
 
-        if self.kernel.input_dim > 1:   # 3D plot
+        if self.kernel.input_dim - self.num_contexts > 1:   # 3D plot
             if self.gp is None:
                 return None
 
@@ -255,6 +262,16 @@ class GaussianProcessOptimization(object):
         # Increment time step
         self.t += 1
 
+    def change_context(self, context):
+        """Change the context of the input points.
+
+        Parameters
+        ----------
+        context: ndarray
+            New context that should be applied to the input parameters
+        """
+        self.inputs[:, -self.num_contexts:] = context
+
     def remove_last_data_point(self):
         """Remove the data point that was last added to the GP."""
         # self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
@@ -292,8 +309,9 @@ class SafeOpt(GaussianProcessOptimization):
 
     """
     def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0):
-        super(SafeOpt, self).__init__(function, gp, parameter_set, beta)
+                 lipschitz=None, beta=3.0, num_contexts=0):
+        super(SafeOpt, self).__init__(function, gp, parameter_set, beta,
+                                      num_contexts)
 
         self.fmin = fmin
         self.liptschitz = lipschitz
@@ -354,14 +372,21 @@ class SafeOpt(GaussianProcessOptimization):
 
     @use_contained_sets.setter
     def use_contained_sets(self, value):
-        self._use_contained_sets = value
+        if self.num_contexts >= 0:
+            raise RuntimeError('Contained sets are not implemented for '
+                               'contexts (need to keep track of individual '
+                               'sets for each possible context).')
+        else:
+            self._use_contained_sets = value
 
-    def compute_sets(self, full_sets=False):
+    def compute_sets(self, context=None, full_sets=False):
         """
         Compute the safe set of points
 
         Parameters
         ----------
+        context: ndarray
+            Array that contains the context used to compute the sets
         full_sets: boolean
             Whether to compute the full set of expanders or whether to omit
             computations that are not relevant for running SafeOpt
@@ -370,6 +395,9 @@ class SafeOpt(GaussianProcessOptimization):
         if self.gp is None:
             raise RuntimeError('self.gp should be initialized at this point.')
 
+        # Update context to current setting
+        if context is not None:
+            self.inputs[:, -self.num_contexts:] = context
         beta = self.beta(self.t)
 
         # Evaluate acquisition function
@@ -529,14 +557,24 @@ class SafeOpt(GaussianProcessOptimization):
         value = u[MG] - l[MG]
         return self.inputs[MG][np.argmax(value)]
 
-    def optimize(self):
-        """Run one step of bayesian optimization."""
+    def optimize(self, context=None):
+        """Run one step of bayesian optimization.
+
+        Parameters
+        ----------
+        context: ndarray
+            A vector containing the current context
+        """
         # Update the sets
-        self.compute_sets()
+        self.compute_sets(context=context)
         # Get new input value
         x = self.compute_new_query_point()
         # Sample noisy output
-        value = self.function(x)
+        if context is None:
+            value = self.function(x)
+        else:
+            value = self.function(x[:-self.num_contexts],
+                                  x[-self.num_contexts:])
         # Add data point to the GP
         self.add_new_data_point(x, value)
 
