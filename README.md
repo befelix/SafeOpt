@@ -35,7 +35,7 @@ The class has two optional arguments: when ```lipschitz``` is not None, the orig
 There are two internal variables that influence the behavior of the algorithm:
 ```GaussianProcessSafeOpt.use_lipschitz``` determines whether to use the lipschitz constant or the Gaussian process confidence intervals to determine the sets of maximizers and expanders and ```GaussianProcessSafeOpt.use_constained_sets``` determines whether to enforce the sets of possible values to be contained in one another (as required by the proof in [1]).
 
-Once the class is initialized, it's ```optimize``` method can be used to sample a new point. The ```plot``` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
+Once the class is initialized, its ```optimize``` method can be used to sample a new point. The ```plot``` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
 
 For a more detailed documentation see the class/method docstrings within the source code.
 
