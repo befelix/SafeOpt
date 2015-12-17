@@ -93,7 +93,6 @@ class GaussianProcessOptimization(object):
         self.num_samples = [len(np.unique(self._inputs[:, i]))
                             for i in range(self._inputs.shape[1])]
 
-
     @property
     def likelihood(self):
         """The observation likelihood of the GP."""
@@ -111,6 +110,12 @@ class GaussianProcessOptimization(object):
         ----------
         axis: matplotlib axis
             The axis on which to draw (does not get cleared first)
+        figure: matplotlib figure
+        n_samples: int
+            How many samples to use for plotting (uses input parameters if
+            None)
+        plot_3d: boolean
+            If set to true shows a 3D plot for 2 dimensional data
         """
         # 4d plots are tough...
         if self.kernel.input_dim > 2:
@@ -234,7 +239,7 @@ class GaussianProcessOptimization(object):
                              [c.T, d]]))
 
             K_new = np.bmat([[self.gp.posterior._K, a],
-                          [a.T, b]])
+                             [a.T, b]])
 
             self.gp.X = np.vstack((self.gp.X, x))
             self.gp.Y = np.vstack((self.gp.Y, y))
