@@ -111,6 +111,7 @@ class GaussianProcessOptimization(object):
         axis: matplotlib axis
             The axis on which to draw (does not get cleared first)
         figure: matplotlib figure
+            Ignored if axis is already defined
         n_samples: int
             How many samples to use for plotting (uses input parameters if
             None)
@@ -130,35 +131,39 @@ class GaussianProcessOptimization(object):
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
-        if figure is None:
-            fig = plt.figure()
-        else:
-            fig = figure
+        if axis is None:
+            if figure is None:
+                fig = plt.figure()
+            else:
+                fig = figure
+
+            if plot_3d:
+                axis = Axes3D(fig)
+            else:
+                axis = fig.gca()
 
         if self.kernel.input_dim > 1:   # 3D plot
             if self.gp is None:
                 return None
 
             if plot_3d:
-                ax = Axes3D(fig)
-
                 output, var = self.gp._raw_predict(inputs)
                 # output += 2 * np.sqrt(var)
 
-                ax.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
-                                cmap=cm.jet, linewidth=0.2, alpha=0.5)
+                axis.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
+                                  cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
-                ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0], 'o')
+                axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0],
+                          'o')
 
             else:
                 # Use 2D level set plot, 3D is too slow
-                ax = fig.gca()
                 output, var = self.gp._raw_predict(inputs)
                 if np.all(output == output[0, 0]):
                     plt.xlim(self.bounds[0])
                     plt.ylim(self.bounds[1])
                     return None
-                c = ax.contour(np.linspace(self.bounds[0][0],
+                c = axis.contour(np.linspace(self.bounds[0][0],
                                            self.bounds[0][1],
                                            n_samples[0]),
                                np.linspace(self.bounds[1][0],
@@ -167,27 +172,26 @@ class GaussianProcessOptimization(object):
                                output.reshape(*n_samples),
                                20)
                 plt.colorbar(c)
-                ax.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
+                axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
 
         else:   # 2D plots with uncertainty
             if self.gp is None:
-                plt.figure(fig.number)
                 gram_diag = self.kernel.Kdiag(inputs)
                 std_dev = self.beta(self.t) * np.sqrt(gram_diag)
-                plt.fill_between(inputs[:, 0], -std_dev, std_dev,
-                                 facecolor='blue',
-                                 alpha=0.1)
+                axis.fill_between(inputs[:, 0], -std_dev, std_dev,
+                                  facecolor='blue',
+                                  alpha=0.1)
             else:
-                plt.figure(fig.number)
-                output, var = self.gp._raw_predict(inputs[1:, :])
+                output, var = self.gp._raw_predict(inputs)
                 output = output.squeeze()
                 std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
-                plt.fill_between(inputs[1:, 0], output - std_dev,
-                                 output + std_dev,
-                                 facecolor='blue',
-                                 alpha=0.3)
-                plt.plot(inputs[1:, 0], output, **kwargs)
-                plt.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
+                axis.fill_between(inputs[:, 0],
+                                  output - std_dev,
+                                  output + std_dev,
+                                  facecolor='blue',
+                                  alpha=0.3)
+                axis.plot(inputs[:, 0], output, **kwargs)
+                axis.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
                 # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
                 #              ax=axis)
 
@@ -294,9 +298,6 @@ class SafeOpt(GaussianProcessOptimization):
         self.fmin = fmin
         self.liptschitz = lipschitz
 
-        # make sure initial point is in optimization points
-        self.inputs = np.vstack([gp.X, self.inputs])
-
         # Value intervals
         self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
         self.C[:] = [-np.inf, np.inf]
@@ -304,8 +305,6 @@ class SafeOpt(GaussianProcessOptimization):
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
-        if np.any(self.gp.Y <= self.fmin):
-            raise ValueError('Initial point is unsafe')
 
         # Switch to use confidence intervals for safety
         if lipschitz is None:
