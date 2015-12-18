@@ -144,13 +144,13 @@ class GaussianProcessOptimization(object):
                     plt.ylim(self.bounds[1])
                     return None
                 c = axis.contour(np.linspace(self.bounds[0][0],
-                                           self.bounds[0][1],
-                                           n_samples[0]),
-                               np.linspace(self.bounds[1][0],
-                                           self.bounds[1][1],
-                                           n_samples[1]),
-                               output.reshape(*n_samples),
-                               20)
+                                             self.bounds[0][1],
+                                             n_samples[0]),
+                                 np.linspace(self.bounds[1][0],
+                                             self.bounds[1][1],
+                                             n_samples[1]),
+                                 output.reshape(*n_samples),
+                                 20)
                 plt.colorbar(c)
                 axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
 
