@@ -171,7 +171,7 @@ class GaussianProcessOptimization(object):
                               facecolor='blue',
                               alpha=0.3)
             axis.plot(inputs[:, 0], output, **kwargs)
-            axis.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
+            axis.plot(self.gp.X[:, 0], self.gp.Y, 'kx', ms=10, mew=3)
             # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
             #              ax=axis)
 
