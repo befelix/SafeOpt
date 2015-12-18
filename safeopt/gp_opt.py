@@ -39,9 +39,7 @@ class GaussianProcessOptimization(object):
     -----------
     function: object
         A function that returns the current value that we want to optimize.
-    gp: GPy Gaussian process or a sequence
-        Either a gp from GPy, or a list of (kernel, likelihood) which are
-        instances of GPy.kern.* and GPy.likelihoods.*
+    gp: GPy Gaussian process
     parameter_set: 2d-array
         List of parameters
     beta: float or callable
@@ -51,16 +49,9 @@ class GaussianProcessOptimization(object):
     def __init__(self, function, gp, parameter_set, beta, num_contexts):
         super(GaussianProcessOptimization, self).__init__()
 
-        # Normal GP optimization doesn't require an initial sample
-        # GPy can only be instanciated with at least one sample :(
-        if isinstance(gp, Sequence):
-            self.gp = None
-            self.kernel = gp[0]
-            self._likelihood = gp[1]
-        else:
-            self.gp = gp
-            self.kernel = gp.kern
-            self._likelihood = gp.likelihood
+        self.gp = gp
+        self.kernel = gp.kern
+        self.likelihood = gp.likelihood
         self.function = function
 
         if hasattr(beta, '__call__'):
@@ -99,14 +90,6 @@ class GaussianProcessOptimization(object):
                                np.max(self._inputs, axis=0)))
         self.num_samples = [len(np.unique(self._inputs[:, i]))
                             for i in range(self._inputs.shape[1])]
-
-    @property
-    def likelihood(self):
-        """The observation likelihood of the GP."""
-        if self.gp is None:
-            return self._likelihood
-        else:
-            return self.gp.likelihood
 
     def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False,
              **kwargs):
@@ -150,9 +133,6 @@ class GaussianProcessOptimization(object):
                 axis = fig.gca()
 
         if self.kernel.input_dim - self.num_contexts > 1:   # 3D plot
-            if self.gp is None:
-                return None
-
             if plot_3d:
                 output, var = self.gp._raw_predict(inputs)
                 # output += 2 * np.sqrt(var)
@@ -171,36 +151,29 @@ class GaussianProcessOptimization(object):
                     plt.ylim(self.bounds[1])
                     return None
                 c = axis.contour(np.linspace(self.bounds[0][0],
-                                           self.bounds[0][1],
-                                           n_samples[0]),
-                               np.linspace(self.bounds[1][0],
-                                           self.bounds[1][1],
-                                           n_samples[1]),
-                               output.reshape(*n_samples),
-                               20)
+                                             self.bounds[0][1],
+                                             n_samples[0]),
+                                 np.linspace(self.bounds[1][0],
+                                             self.bounds[1][1],
+                                             n_samples[1]),
+                                 output.reshape(*n_samples),
+                                 20)
                 plt.colorbar(c)
                 axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
 
         else:   # 2D plots with uncertainty
-            if self.gp is None:
-                gram_diag = self.kernel.Kdiag(inputs)
-                std_dev = self.beta(self.t) * np.sqrt(gram_diag)
-                axis.fill_between(inputs[:, 0], -std_dev, std_dev,
-                                  facecolor='blue',
-                                  alpha=0.1)
-            else:
-                output, var = self.gp._raw_predict(inputs)
-                output = output.squeeze()
-                std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
-                axis.fill_between(inputs[:, 0],
-                                  output - std_dev,
-                                  output + std_dev,
-                                  facecolor='blue',
-                                  alpha=0.3)
-                axis.plot(inputs[:, 0], output, **kwargs)
-                axis.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
-                # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
-                #              ax=axis)
+            output, var = self.gp._raw_predict(inputs)
+            output = output.squeeze()
+            std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
+            axis.fill_between(inputs[:, 0],
+                              output - std_dev,
+                              output + std_dev,
+                              facecolor='blue',
+                              alpha=0.3)
+            axis.plot(inputs[:, 0], output, **kwargs)
+            axis.plot(self.gp.X, self.gp.Y, 'kx', ms=10, mew=3)
+            # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
+            #              ax=axis)
 
     def add_new_data_point(self, x, y):
         """
@@ -340,6 +313,8 @@ class SafeOpt(GaussianProcessOptimization):
         self.G = np.zeros_like(self.S, dtype=np.bool)
         self.M = self.G.copy()
 
+        # Update the sets
+        self.update_confidence_intervals()
     @property
     def use_lipschitz(self):
         """
@@ -379,26 +354,19 @@ class SafeOpt(GaussianProcessOptimization):
         else:
             self._use_contained_sets = value
 
-    def compute_sets(self, context=None, full_sets=False):
-        """
-        Compute the safe set of points
+    def update_confidence_intervals(self, context=None):
+        """Recompute the confidence intervals form the GP.
 
         Parameters
         ----------
         context: ndarray
             Array that contains the context used to compute the sets
-        full_sets: boolean
-            Whether to compute the full set of expanders or whether to omit
-            computations that are not relevant for running SafeOpt
-            (This option is only useful for plotting purposes)
         """
-        if self.gp is None:
-            raise RuntimeError('self.gp should be initialized at this point.')
+        beta = self.beta(self.t)
 
         # Update context to current setting
         if context is not None:
             self.inputs[:, -self.num_contexts:] = context
-        beta = self.beta(self.t)
 
         # Evaluate acquisition function
         mean, var = self.gp._raw_predict(self.inputs)
@@ -419,6 +387,24 @@ class SafeOpt(GaussianProcessOptimization):
             self.C[:, 0] = np.where(C_l < Q_l, np.min([Q_l, C_u], 0), C_l)
             self.C[:, 1] = np.where(C_u > Q_u, np.max([Q_u, C_l], 0), C_u)
 
+    def compute_sets(self, full_sets=False):
+        """
+        Compute the safe set of points, based on current confidence bounds.
+
+        Parameters
+        ----------
+        context: ndarray
+            Array that contains the context used to compute the sets
+        full_sets: boolean
+            Whether to compute the full set of expanders or whether to omit
+            computations that are not relevant for running SafeOpt
+            (This option is only useful for plotting purposes)
+        """
+
+        beta = self.beta(self.t)
+
+        # Use the appropriate confidence interval
+        if self.use_contained_sets:
             l, u = self.C.T
         else:
             l, u = self.Q.T
@@ -426,6 +412,7 @@ class SafeOpt(GaussianProcessOptimization):
         # Expand safe set
         if self.use_lipschitz:
             # Euclidean distance between all safe and unsafe points
+            # Could precompute this once for all points
             d = cdist(self.inputs[self.S], self.inputs[~self.S])
 
             # Apply Lipschitz constant to determine new safe points
@@ -565,8 +552,10 @@ class SafeOpt(GaussianProcessOptimization):
         context: ndarray
             A vector containing the current context
         """
+        # Update confidence intervals based on current estimate
+        self.update_confidence_intervals(context=context)
         # Update the sets
-        self.compute_sets(context=context)
+        self.compute_sets()
         # Get new input value
         x = self.compute_new_query_point()
         # Sample noisy output
@@ -577,6 +566,8 @@ class SafeOpt(GaussianProcessOptimization):
                                   x[-self.num_contexts:])
         # Add data point to the GP
         self.add_new_data_point(x, value)
+        # Update confidence intervals based on current estimate
+        self.update_confidence_intervals()
 
     def get_maximum(self):
         """
