@@ -290,9 +290,7 @@ class SafeOpt(GaussianProcessOptimization):
         self.liptschitz = lipschitz
 
         # Value intervals
-        self.C = np.empty((self.inputs.shape[0], 2), dtype=np.float)
-        self.C[:] = [-np.inf, np.inf]
-        self.Q = self.C.copy()
+        self.Q = np.empty((self.inputs.shape[0], 2), dtype=np.float)
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
@@ -302,16 +300,10 @@ class SafeOpt(GaussianProcessOptimization):
             self._use_lipschitz = False
         else:
             self._use_lipschitz = True
-            self.S[:self.gp.X.shape[0]] = True
-
-        # Whether to use self-contained sets (only really needed for proof)
-        self._use_contained_sets = False
-
-        self.C[self.S, 0] = self.fmin
 
         # Set of expanders and maximizers
-        self.G = np.zeros_like(self.S, dtype=np.bool)
-        self.M = self.G.copy()
+        self.G = self.S.copy()
+        self.M = self.S.copy()
 
         # Update the sets
         self.update_confidence_intervals()
@@ -332,27 +324,6 @@ class SafeOpt(GaussianProcessOptimization):
         if value and self.liptschitz is None:
             raise ValueError('Lipschitz constant not defined')
         self._use_lipschitz = value
-
-    @property
-    def use_contained_sets(self):
-        """
-        Boolean that determines whether to use self-contained sets.
-
-        The original SafeOpt algorithm requires self-contained predictions
-        of the Gaussian process to prove theoretical results. However,
-        in practice this is usually not necessary, so the this parameter
-        defaults to False.
-        """
-        return self._use_contained_sets
-
-    @use_contained_sets.setter
-    def use_contained_sets(self, value):
-        if self.num_contexts >= 0:
-            raise RuntimeError('Contained sets are not implemented for '
-                               'contexts (need to keep track of individual '
-                               'sets for each possible context).')
-        else:
-            self._use_contained_sets = value
 
     def update_confidence_intervals(self, context=None):
         """Recompute the confidence intervals form the GP.
@@ -377,16 +348,6 @@ class SafeOpt(GaussianProcessOptimization):
         self.Q[:, 0] = mean - beta * std_dev
         self.Q[:, 1] = mean + beta * std_dev
 
-        # Update confidence intervals if they're being used
-        if self.use_contained_sets:
-            # Convenient views on C and Q
-            C_l, C_u = self.C.T
-            Q_l, Q_u = self.Q.T
-
-            # Update value interval, make sure C(t+1) is contained in C(t)
-            self.C[:, 0] = np.where(C_l < Q_l, np.min([Q_l, C_u], 0), C_l)
-            self.C[:, 1] = np.where(C_u > Q_u, np.max([Q_u, C_l], 0), C_u)
-
     def compute_sets(self, full_sets=False):
         """
         Compute the safe set of points, based on current confidence bounds.
@@ -403,11 +364,8 @@ class SafeOpt(GaussianProcessOptimization):
 
         beta = self.beta(self.t)
 
-        # Use the appropriate confidence interval
-        if self.use_contained_sets:
-            l, u = self.C.T
-        else:
-            l, u = self.Q.T
+        # Reference to confidence intervals
+        l, u = self.Q.T
 
         # Expand safe set
         if self.use_lipschitz:
@@ -535,10 +493,7 @@ class SafeOpt(GaussianProcessOptimization):
         sets M and G.
         """
         # Get lower and upper bounds
-        if self.use_contained_sets:
-            l, u = self.C.T
-        else:
-            l, u = self.Q.T
+        l, u = self.Q.T
 
         MG = np.logical_or(self.M, self.G)
         value = u[MG] - l[MG]
@@ -581,10 +536,7 @@ class SafeOpt(GaussianProcessOptimization):
             Maximum value
 
         """
-        if self.use_contained_sets:
-            l = self.C[:, 0]
-        else:
-            l = self.Q[:, 0]
+        l = self.Q[:, 0]
 
         max_id = np.argmax(l)
         return self.inputs[max_id, :], l[max_id]
