@@ -554,8 +554,7 @@ class SafeOpt(GaussianProcessOptimization):
                                   x[-self.num_contexts:])
         # Add data point to the GP
         self.add_new_data_point(x, value)
-        # Update confidence intervals based on current estimate
-        self.update_confidence_intervals()
+        self.t += 1
 
     def get_maximum(self):
         """
