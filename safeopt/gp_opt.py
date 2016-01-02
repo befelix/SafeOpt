@@ -140,7 +140,9 @@ class GaussianProcessOptimization(object):
                 axis.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
                                   cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
-                axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], self.gp.Y[:, 0],
+                axis.plot(self.gp[0].X[:, 0],
+                          self.gp[0].X[:, 1],
+                          self.gp[0].Y[:, 0],
                           'o')
 
             else:
@@ -175,7 +177,7 @@ class GaussianProcessOptimization(object):
             # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
             #              ax=axis)
 
-    def add_new_data_point(self, x, y):
+    def add_new_data_point(self, x, y, gp=None):
         """
         Add a new function observation to the GP.
 
@@ -183,57 +185,52 @@ class GaussianProcessOptimization(object):
         ----------
         x: 2d-array
         y: 2d-array
+        gp: instance of GPy.model.GPRegression
+            The gp to which the data point should be added
         """
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
-        if self.gp is None:
-            # Initialize GP
-            # inference_method = GPy.inference.latent_function_inference.\
-            #     exact_gaussian_inference.ExactGaussianInference()
-            self.gp = GPy.core.GP(X=x, Y=y, kernel=self.kernel,
-                                  # inference_method=inference_method,
-                                  likelihood=self.likelihood)
-        else:
-            # Add data to GP
-            # self.gp.set_XY(np.vstack([self.gp.X, x]),
-            #                np.vstack([self.gp.Y, y]))
+        if gp is None:
+            gp = self.gp
 
-            # Add data row/col to kernel (a, b)
-            # [ K    a ]
-            # [ a.T  b ]
-            #
-            # Now K = L.dot(L.T)
-            # The new Cholesky decomposition is then
-            # L_new = [ L    0 ]
-            #         [ c.T  d ]
-            a = self.gp.kern.K(self.gp.X, x)
-            b = self.gp.kern.K(x, x)
+        # Add data to GP
+        # self.gp.set_XY(np.vstack([self.gp.X, x]),
+        #                np.vstack([self.gp.Y, y]))
 
-            b += 1e-8 + self.gp.likelihood.gaussian_variance(
-                    self.gp.Y_metadata)
+        # Add data row/col to kernel (a, b)
+        # [ K    a ]
+        # [ a.T  b ]
+        #
+        # Now K = L.dot(L.T)
+        # The new Cholesky decomposition is then
+        # L_new = [ L    0 ]
+        #         [ c.T  d ]
+        a = gp.kern.K(gp.X, x)
+        b = gp.kern.K(x, x)
 
-            L = self.gp.posterior.woodbury_chol
-            c = sp.linalg.solve_triangular(self.gp.posterior.woodbury_chol, a,
-                                           lower=True)
+        b += 1e-8 + gp.likelihood.gaussian_variance(
+                gp.Y_metadata)
 
-            d = np.sqrt(b - c.T.dot(c))
+        L = gp.posterior.woodbury_chol
+        c = sp.linalg.solve_triangular(gp.posterior.woodbury_chol, a,
+                                       lower=True)
 
-            L_new = np.asfortranarray(
-                    np.bmat([[L, np.zeros_like(c)],
-                             [c.T, d]]))
+        d = np.sqrt(b - c.T.dot(c))
 
-            K_new = np.bmat([[self.gp.posterior._K, a],
-                             [a.T, b]])
+        L_new = np.asfortranarray(
+                np.bmat([[L, np.zeros_like(c)],
+                         [c.T, d]]))
 
-            self.gp.X = np.vstack((self.gp.X, x))
-            self.gp.Y = np.vstack((self.gp.Y, y))
+        K_new = np.bmat([[gp.posterior._K, a],
+                         [a.T, b]])
 
-            alpha, _ = dpotrs(L_new, self.gp.Y, lower=1)
-            self.gp.posterior = Posterior(woodbury_chol=L_new,
-                                          woodbury_vector=alpha,
-                                          K=K_new)
-        # Increment time step
-        self.t += 1
+        gp.X = np.vstack((gp.X, x))
+        gp.Y = np.vstack((gp.Y, y))
+
+        alpha, _ = dpotrs(L_new, gp.Y, lower=1)
+        gp.posterior = Posterior(woodbury_chol=L_new,
+                                 woodbury_vector=alpha,
+                                 K=K_new)
 
     def change_context(self, context):
         """Change the context of the input points.
@@ -245,18 +242,25 @@ class GaussianProcessOptimization(object):
         """
         self.inputs[:, -self.num_contexts:] = context
 
-    def remove_last_data_point(self):
-        """Remove the data point that was last added to the GP."""
+    def remove_last_data_point(self, gp=None):
+        """Remove the data point that was last added to the GP.
+
+        Parameters:
+            gp: Instance of GPy.models.GPRegression
+                The gp that the last data point should be removed from
+        """
+        if gp is None:
+            gp = self.gp
+
         # self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
-        self.gp.X = self.gp.X[:-1, :]
-        self.gp.Y = self.gp.Y[:-1, :]
-        self.gp.posterior = Posterior(
+        gp.X = gp.X[:-1, :]
+        gp.Y = gp.Y[:-1, :]
+        gp.posterior = Posterior(
                 woodbury_chol=np.asfortranarray(
-                        self.gp.posterior.woodbury_chol[:-1, :-1]),
+                        gp.posterior.woodbury_chol[:-1, :-1]),
                 woodbury_vector=np.asfortranarray(
-                        self.gp.posterior.woodbury_vector[:-1]),
-                K=self.gp.posterior._K[:-1, :-1])
-        self.t -= 1
+                        gp.posterior.woodbury_vector[:-1]),
+                K=gp.posterior._K[:-1, :-1])
 
 
 class SafeOpt(GaussianProcessOptimization):
@@ -269,32 +273,49 @@ class SafeOpt(GaussianProcessOptimization):
         A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process
         A Gaussian process which is initialized with safe, initial data points.
+        If a list of GPs then the first one is the value, while all the
+        other ones are safety constraints.
     parameter_set: 2d-array
         List of parameters
-    fmin: float
-        Safety threshold for the function value
-    lipschitz: float
+    fmin: list of floats
+        Safety threshold for the function value. If multiple safety constraints
+        are used this can also be a list of floats (the first one is always
+        the one for the values, can be set to None if not wanted)
+    lipschitz: list of floats
         The Lipschitz constant of the system, if None the GP confidence
         intervals are used directly.
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
-    num_safety: int
-        Number of safety constraints that are separate from the performance
-        function used.
 
     """
     def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0, num_contexts=0, num_safety=0):
+                 lipschitz=None, beta=3.0, num_contexts=0):
+
+        if isinstance(gp, list):
+            self.gps = gp
+            gp = self.gps[0]
+        else:
+            self.gps = [gp]
+
         super(SafeOpt, self).__init__(function, gp, parameter_set, beta,
                                       num_contexts)
 
-        self.num_safety = num_safety
         self.fmin = fmin
         self.liptschitz = lipschitz
 
+
+        if not isinstance(self.fmin, list):
+            self.fmin = [self.fmin] * len(self.gps)
+            if len(self.gps) > 1:
+                self.fmin[0] = None
+        if not isinstance(self.liptschitz, list):
+            self.liptschitz = [self.liptschitz] * len(self.gps)
+        self.fmin = np.asarray(self.fmin)
+        self.liptschitz = np.asarray(self.liptschitz)
+
         # Value intervals
-        self.Q = np.empty((self.inputs.shape[0], 2 * (1 + self.num_safety)),
+        self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
                           dtype=np.float)
 
         # Safe set
@@ -345,23 +366,10 @@ class SafeOpt(GaussianProcessOptimization):
         if context is not None:
             self.inputs[:, -self.num_contexts:] = context
 
-        if self.num_safety > 0:
-            inputs = np.hstack((self.inputs,
-                                np.zeros((self.inputs.shape[0], 1))))
-        else:
-            inputs = self.inputs
-
         # Iterate over all functions
-        for i in range(0, self.num_safety + 1):
-            # Add function index if multiple functions
-            if self.num_safety > 0:
-                inputs[:, -1] = i
-
-            print(i, inputs.shape)
-            print(inputs)
-
+        for i in range(len(self.gps)):
             # Evaluate acquisition function
-            mean, var = self.gp._raw_predict(inputs)
+            mean, var = self.gps[i]._raw_predict(self.inputs)
 
             mean = mean.squeeze()
             std_dev = np.sqrt(var.squeeze())
@@ -386,20 +394,11 @@ class SafeOpt(GaussianProcessOptimization):
 
         beta = self.beta(self.t)
 
+        # Update safe set
+        self.S[:] = np.all(self.Q[:, ::2] > self.fmin, axis=1)
+
         # Reference to confidence intervals
-        l, u = self.Q.T
-
-        # Expand safe set
-        if self.use_lipschitz:
-            # Euclidean distance between all safe and unsafe points
-            # Could precompute this once for all points
-            d = cdist(self.inputs[self.S], self.inputs[~self.S])
-
-            # Apply Lipschitz constant to determine new safe points
-            self.S[~self.S] = \
-                np.any(l[self.S, None] - self.liptschitz * d >= self.fmin, 0)
-        else:
-            self.S[:] = l >= self.fmin
+        l, u = self.Q[:, :2].T
 
         if not np.any(self.S):
             raise EnvironmentError('There are no safe points to evaluate.')
@@ -411,6 +410,9 @@ class SafeOpt(GaussianProcessOptimization):
         max_var = np.max(u[self.M] - l[self.M])
 
         # Optimistic set of possible expanders
+        l = self.Q[:, ::2]
+        u = self.Q[:, 1::2]
+
         self.G[:] = False
 
         # For the run of the algorithm we do not need to calculate the
@@ -426,79 +428,88 @@ class SafeOpt(GaussianProcessOptimization):
             s = np.logical_and(self.S, ~self.M)
 
             # Remove points with a variance that is too small
-            s[s] = u[s] - l[s] > max_var
+            s[s] = np.max(u[s, :] - l[s, :], axis=1) > max_var
 
         # no points to evalute for G, exit
         if not np.any(s):
             return
 
-        def sort_generator(array):
-            """Return the indeces of the biggest elements in order.
-
-            Avoids sorting everything, only sort the relevant parts at a time.
-
-            Parameters
-            ----------
-            array: 1d-array
-                The array which we want to sort and iterate over
-
-            Returns
-            -------
-            iterable:
-                Indeces of the largest elements in order
-            """
-            sort_id = np.argpartition(array, -1)
-            yield sort_id[-1]
-            for i in range(1, len(array)):
-                sort_id[:-i] =\
-                    sort_id[:-i][np.argpartition(array[sort_id[:-i]], -1)]
-                yield sort_id[-i - 1]
-
-        # # Rather than using a generator we could just straight out sort.
-        # # This is faster if we have to check more than log(n) points as
-        # # expanders before finding one
         # def sort_generator(array):
-        #     """Return the sorted array, largest element first."""
-        #     return array.argsort()[::-1]
+        #     """Return the indeces of the biggest elements in order.
+        #
+        #     Avoids sorting everything, sorts the relevant parts at a time.
+        #
+        #     Parameters
+        #     ----------
+        #     array: 1d-array
+        #         The array which we want to sort and iterate over
+        #
+        #     Returns
+        #     -------
+        #     iterable:
+        #         Indeces of the largest elements in order
+        #     """
+        #     sort_id = np.argpartition(array, -1)
+        #     yield sort_id[-1]
+        #     for i in range(1, len(array)):
+        #         sort_id[:-i] =\
+        #             sort_id[:-i][np.argpartition(array[sort_id[:-i]], -1)]
+        #         yield sort_id[-i - 1]
+
+        # Rather than using a generator we could just straight out sort.
+        # This is faster if we have to check more than log(n) points as
+        # expanders before finding one
+        def sort_generator(array):
+            """Return the sorted array, largest element first."""
+            return array.argsort()[::-1]
 
         # set of safe expanders
         G_safe = np.zeros(np.count_nonzero(s), dtype=np.bool)
 
         if not full_sets:
             # Sort, element with largest variance first
-            sort_index = sort_generator(u[s] - l[s])
+            sort_index = sort_generator(np.max(u[s, :] - l[s, :],
+                                               axis=1))
         else:
             # Sort index is just an enumeration of all safe states
-            sort_index = range(len(G_safe))
+            sort_index = range(G_safe)
 
         for index in sort_index:
             if self.use_lipschitz:
                 d = cdist(self.inputs[s, :][[index], :],
                           self.inputs[~self.S, :])
-                l2 = u[s][index] - self.liptschitz * d
+                for i in len(self.gps):
+                    G_safe[index] =\
+                        u[s, i][index] - self.liptschitz[i] * d >= self.fmin[i]
+                    if not G_safe[index]:
+                        break
             else:
-                # Add safe point with it's max possible value to the gp
-                self.add_new_data_point(self.inputs[s, :][index, :],
-                                        u[s][index])
+                for i in range(len(self.gps)):
+                    # Add safe point with it's max possible value to the gp
+                    self.add_new_data_point(self.inputs[s, :][index, :],
+                                            u[s][index],
+                                            gp=self.gps[i])
 
-                # Prediction of unsafe points based on that
-                mean2, var2 = self.gp._raw_predict(self.inputs[~self.S])
+                    # Prediction of unsafe points based on that
+                    mean2, var2 = self.gps[i]._raw_predict(self.inputs[~self.S])
 
-                # Remove the fake data point from the GP again
-                self.remove_last_data_point()
+                    # Remove the fake data point from the GP again
+                    self.remove_last_data_point(gp=self.gps[i])
 
-                mean2 = mean2.squeeze()
-                var2 = var2.squeeze()
-                l2 = mean2 - beta * np.sqrt(var2)
+                    mean2 = mean2.squeeze()
+                    var2 = var2.squeeze()
+                    l2 = mean2 - beta * np.sqrt(var2)
 
-            # If the unsafe lower bound is suddenly above fmin: expander
-            if np.any(l2 >= self.fmin):
-                G_safe[index] = True
-                # Since we sorted by uncertainty and only the most
-                # uncertain element gets picked by SafeOpt anyways, we can
-                # stop after we found the first one
-                if not full_sets:
-                    break
+                    # If the unsafe lower bound is suddenly above fmin: expander
+                    G_safe[index] = np.any(l2 >= self.fmin)
+                    if not G_safe[index]:
+                        break
+
+            # Since we sorted by uncertainty and only the most
+            # uncertain element gets picked by SafeOpt anyways, we can
+            # stop after we found the first one
+            if G_safe[index] and not full_sets:
+                break
 
         self.G[s] = G_safe
 
