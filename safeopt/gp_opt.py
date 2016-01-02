@@ -279,18 +279,23 @@ class SafeOpt(GaussianProcessOptimization):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
+    num_safety: int
+        Number of safety constraints that are separate from the performance
+        function used.
 
     """
     def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0, num_contexts=0):
+                 lipschitz=None, beta=3.0, num_contexts=0, num_safety=0):
         super(SafeOpt, self).__init__(function, gp, parameter_set, beta,
                                       num_contexts)
 
+        self.num_safety = num_safety
         self.fmin = fmin
         self.liptschitz = lipschitz
 
         # Value intervals
-        self.Q = np.empty((self.inputs.shape[0], 2), dtype=np.float)
+        self.Q = np.empty((self.inputs.shape[0], 2 * (1 + self.num_safety)),
+                          dtype=np.float)
 
         # Safe set
         self.S = np.zeros(self.inputs.shape[0], dtype=np.bool)
@@ -307,6 +312,7 @@ class SafeOpt(GaussianProcessOptimization):
 
         # Update the sets
         self.update_confidence_intervals()
+
     @property
     def use_lipschitz(self):
         """
@@ -339,14 +345,30 @@ class SafeOpt(GaussianProcessOptimization):
         if context is not None:
             self.inputs[:, -self.num_contexts:] = context
 
-        # Evaluate acquisition function
-        mean, var = self.gp._raw_predict(self.inputs)
-        mean = mean.squeeze()
-        std_dev = np.sqrt(var.squeeze())
+        if self.num_safety > 0:
+            inputs = np.hstack((self.inputs,
+                                np.zeros((self.inputs.shape[0], 1))))
+        else:
+            inputs = self.inputs
 
-        # Update confidence intervals
-        self.Q[:, 0] = mean - beta * std_dev
-        self.Q[:, 1] = mean + beta * std_dev
+        # Iterate over all functions
+        for i in range(0, self.num_safety + 1):
+            # Add function index if multiple functions
+            if self.num_safety > 0:
+                inputs[:, -1] = i
+
+            print(i, inputs.shape)
+            print(inputs)
+
+            # Evaluate acquisition function
+            mean, var = self.gp._raw_predict(inputs)
+
+            mean = mean.squeeze()
+            std_dev = np.sqrt(var.squeeze())
+
+            # Update confidence intervals
+            self.Q[:, 2 * i] = mean - beta * std_dev
+            self.Q[:, 2 * i + 1] = mean + beta * std_dev
 
     def compute_sets(self, full_sets=False):
         """
