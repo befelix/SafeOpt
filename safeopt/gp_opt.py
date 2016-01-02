@@ -553,7 +553,9 @@ class SafeOpt(GaussianProcessOptimization):
             value = self.function(x[:-self.num_contexts],
                                   x[-self.num_contexts:])
         # Add data point to the GP
-        self.add_new_data_point(x, value)
+        for i in range(len(x)):
+            if x[i] is not None:
+                self.add_new_data_point(x, value, gp=self.gps[i])
         self.t += 1
 
     def get_maximum(self):
