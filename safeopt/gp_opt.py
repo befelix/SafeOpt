@@ -301,18 +301,18 @@ class SafeOpt(GaussianProcessOptimization):
         super(SafeOpt, self).__init__(function, gp, parameter_set, beta,
                                       num_contexts)
 
-        self._fmin = fmin
-        self._liptschitz = lipschitz
+        self.fmin = fmin
+        self.liptschitz = lipschitz
 
 
-        if not isinstance(fmin, list):
-            self._fmin = [self._fmin] * len(self.gps)
+        if not isinstance(self.fmin, list):
+            self.fmin = [self.fmin] * len(self.gps)
             if len(self.gps) > 1:
                 self.fmin[0] = None
-        if not isinstance(self._liptschitz, list):
-            self._liptschitz = [self._liptschitz] * len(self.gps)
-        self._fmin = np.asarray(self._fmin)
-        self._liptschitz = np.asarray(self._liptschitz)
+        if not isinstance(self.liptschitz, list):
+            self.liptschitz = [self.liptschitz] * len(self.gps)
+        self.fmin = np.asarray(self.fmin)
+        self.liptschitz = np.asarray(self.liptschitz)
 
         # Value intervals
         self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
@@ -351,34 +351,6 @@ class SafeOpt(GaussianProcessOptimization):
         if value and self.liptschitz is None:
             raise ValueError('Lipschitz constant not defined')
         self._use_lipschitz = value
-
-    @property
-    def fmin(self):
-        if len(self.gps) == 1:
-            return self._fmin[0]
-        else:
-            return self._fmin
-
-    @fmin.setter
-    def fmin(self, value):
-        if len(self.gps) == 1:
-            self._fmin[0] = value
-        else:
-            self._fmin = value
-
-    @property
-    def lipschitz(self):
-        if len(self.gps) == 1:
-            return self._liptschitz[0]
-        else:
-            return self._lipschitz
-
-    @lipschitz.setter
-    def lipschitz(self, value):
-        if len(self.gps) == 1:
-            self._lipschitz[0] = value
-        else:
-            self._lipschitz = value
 
     def update_confidence_intervals(self, context=None):
         """Recompute the confidence intervals form the GP.
