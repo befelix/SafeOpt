@@ -287,10 +287,13 @@ class SafeOpt(GaussianProcessOptimization):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
+    threshold: float
+        The algorithm will not try to expand any points that are below this
+        threshold. This makes the algorithm stop expanding points eventually.
 
     """
     def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0, num_contexts=0):
+                 lipschitz=None, beta=3.0, num_contexts=0, threshold=0):
 
         if isinstance(gp, list):
             self.gps = gp
@@ -303,6 +306,7 @@ class SafeOpt(GaussianProcessOptimization):
 
         self.fmin = fmin
         self.liptschitz = lipschitz
+        self.threshold = threshold
 
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
@@ -429,7 +433,8 @@ class SafeOpt(GaussianProcessOptimization):
             s = np.logical_and(self.S, ~self.M)
 
             # Remove points with a variance that is too small
-            s[s] = np.max(u[s, :] - l[s, :], axis=1) > max_var
+            s[s] = np.max(u[s, :] - l[s, :], axis=1) > max(max_var,
+                                                           self.threshold)
 
         # no points to evalute for G, exit
         if not np.any(s):
@@ -480,6 +485,8 @@ class SafeOpt(GaussianProcessOptimization):
                 d = cdist(self.inputs[s, :][[index], :],
                           self.inputs[~self.S, :])
                 for i in range(len(self.gps)):
+                    if self.fmin[i] == -np.inf:
+                        continue
                     G_safe[index] =\
                         np.any(u[s, i][index] - self.liptschitz[i] * d >=
                                self.fmin[i])
@@ -487,6 +494,8 @@ class SafeOpt(GaussianProcessOptimization):
                         break
             else:
                 for i in range(len(self.gps)):
+                    if self.fmin[i] == -np.inf:
+                        continue
                     # Add safe point with it's max possible value to the gp
                     self.add_new_data_point(self.inputs[s, :][index, :],
                                             u[s][index],
