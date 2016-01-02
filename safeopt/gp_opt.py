@@ -312,12 +312,12 @@ class SafeOpt(GaussianProcessOptimization):
             self.fmin = [self.fmin] * len(self.gps)
             if len(self.gps) > 1:
                 self.fmin[0] = None
+        self.fmin = np.asarray(self.fmin).squeeze()
 
         if self.liptschitz is not None:
             if not isinstance(self.liptschitz, list):
                self.liptschitz = [self.liptschitz] * len(self.gps)
-            self.liptschitz = np.asarray(self.liptschitz)
-        self.fmin = np.asarray(self.fmin)
+            self.liptschitz = np.asarray(self.liptschitz).squeeze()
 
         # Value intervals
         self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
@@ -498,7 +498,7 @@ class SafeOpt(GaussianProcessOptimization):
                         continue
                     # Add safe point with it's max possible value to the gp
                     self.add_new_data_point(self.inputs[s, :][index, :],
-                                            u[s][index],
+                                            u[s, i][index],
                                             gp=self.gps[i])
 
                     # Prediction of unsafe points based on that
@@ -512,7 +512,7 @@ class SafeOpt(GaussianProcessOptimization):
                     l2 = mean2 - beta * np.sqrt(var2)
 
                     # If the unsafe lower bound is suddenly above fmin: expander
-                    G_safe[index] = np.any(l2 >= self.fmin)
+                    G_safe[index] = np.any(l2 >= self.fmin[i])
                     if not G_safe[index]:
                         break
 
@@ -537,7 +537,7 @@ class SafeOpt(GaussianProcessOptimization):
         sets M and G.
         """
         # Get lower and upper bounds
-        l, u = self.Q.T
+        l, u = self.Q[:, :2].T
 
         MG = np.logical_or(self.M, self.G)
         value = u[MG] - l[MG]
@@ -564,9 +564,9 @@ class SafeOpt(GaussianProcessOptimization):
             value = self.function(x[:-self.num_contexts],
                                   x[-self.num_contexts:])
         # Add data point to the GP
-        for i in range(len(x)):
-            if x[i] is not None:
-                self.add_new_data_point(x, value, gp=self.gps[i])
+        for i in range(len(self.gps)):
+            if value[i] is not None:
+                self.add_new_data_point(x, value[i], gp=self.gps[i])
         self.t += 1
 
     def get_maximum(self):
