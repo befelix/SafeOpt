@@ -304,15 +304,16 @@ class SafeOpt(GaussianProcessOptimization):
         self.fmin = fmin
         self.liptschitz = lipschitz
 
-
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
             if len(self.gps) > 1:
                 self.fmin[0] = None
-        if not isinstance(self.liptschitz, list):
-            self.liptschitz = [self.liptschitz] * len(self.gps)
+
+        if self.liptschitz is not None:
+            if not isinstance(self.liptschitz, list):
+               self.liptschitz = [self.liptschitz] * len(self.gps)
+            self.liptschitz = np.asarray(self.liptschitz)
         self.fmin = np.asarray(self.fmin)
-        self.liptschitz = np.asarray(self.liptschitz)
 
         # Value intervals
         self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
@@ -478,9 +479,10 @@ class SafeOpt(GaussianProcessOptimization):
             if self.use_lipschitz:
                 d = cdist(self.inputs[s, :][[index], :],
                           self.inputs[~self.S, :])
-                for i in len(self.gps):
+                for i in range(len(self.gps)):
                     G_safe[index] =\
-                        u[s, i][index] - self.liptschitz[i] * d >= self.fmin[i]
+                        np.any(u[s, i][index] - self.liptschitz[i] * d >=
+                               self.fmin[i])
                     if not G_safe[index]:
                         break
             else:
