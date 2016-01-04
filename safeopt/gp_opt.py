@@ -50,8 +50,6 @@ class GaussianProcessOptimization(object):
         super(GaussianProcessOptimization, self).__init__()
 
         self.gp = gp
-        self.kernel = gp.kern
-        self.likelihood = gp.likelihood
         self.function = function
 
         if hasattr(beta, '__call__'):
@@ -109,7 +107,7 @@ class GaussianProcessOptimization(object):
             If set to true shows a 3D plot for 2 dimensional data
         """
         # 4d plots are tough...
-        if self.kernel.input_dim > 2:
+        if self.gp.kern.input_dim > 2:
             return None
 
         if n_samples is None:
@@ -132,7 +130,7 @@ class GaussianProcessOptimization(object):
             else:
                 axis = fig.gca()
 
-        if self.kernel.input_dim - self.num_contexts > 1:   # 3D plot
+        if self.gp.kern.input_dim - self.num_contexts > 1:   # 3D plot
             if plot_3d:
                 output, var = self.gp._raw_predict(inputs)
                 # output += 2 * np.sqrt(var)
@@ -572,6 +570,8 @@ class SafeOpt(GaussianProcessOptimization):
         else:
             value = self.function(x[:-self.num_contexts],
                                   x[-self.num_contexts:])
+
+        value = value.squeeze()
         # Add data point to the GP
         for i in range(len(self.gps)):
             if value[i] is not None:
