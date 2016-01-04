@@ -571,7 +571,7 @@ class SafeOpt(GaussianProcessOptimization):
             value = self.function(x[:-self.num_contexts],
                                   x[-self.num_contexts:])
 
-        value = value.squeeze()
+        value = np.atleast_1d(value.squeeze())
         # Add data point to the GP
         for i in range(len(self.gps)):
             if value[i] is not None:
