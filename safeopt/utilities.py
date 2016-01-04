@@ -162,11 +162,15 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
         beta: float
             The confidence interval used
         """
-        if slice is None :
+        if slice is None:
             if gp.kern.input_dim > 1:
                 raise NotImplementedError('This only works for 1D inputs')
             else:
                 slice = 0
+
+        ms = kwargs.pop('ms', 10)
+        mew = kwargs.pop('mew', 3)
+        point_color = kwargs.pop('point_color', 'k')
 
         if axis is None:
             if figure is None:
@@ -190,7 +194,8 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                           alpha=0.3)
 
         axis.plot(inputs[:, slice], output, **kwargs)
-        axis.plot(gp.X[:, slice], gp.Y, 'kx', ms=10, mew=3)
+        axis.scatter(gp.X[:, slice], gp.Y[:, 0], s=20*ms, marker='x',
+                     linewidths=mew, color=point_color)
         axis.set_xlim([np.min(inputs[:, slice]), np.max(inputs[:, slice])])
 
 
@@ -307,8 +312,6 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
         plt.colorbar(c)
         axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
 
-        print(slices)
-        print(np.min(inputs[slices[0]]))
         axis.set_xlim([np.min(inputs[slices[0]]),
                        np.max(inputs[slices[0]])])
 
