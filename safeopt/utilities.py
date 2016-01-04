@@ -10,10 +10,13 @@ from collections import Sequence            # isinstance(...,Sequence)
 import numpy as np
 import GPy
 from scipy.interpolate import griddata      # For sampling GP functions
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
+from matplotlib import cm                   # 3D plot colors
 
 
 __all__ = ['linearly_spaced_combinations', 'get_hyperparameters',
-           'sample_gp_function']
+           'sample_gp_function', 'plot_2d_gp', 'plot_3d_gp', 'plot_contour_gp']
 
 
 def linearly_spaced_combinations(bounds, num_samples):
@@ -126,6 +129,7 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
                                            cov)
 
     def evaluate_gp_function(x, noise=True):
+        """Evaluate the GP sample function."""
         x = np.atleast_2d(x)
         y = griddata(inputs, output, x, method='linear')
         y = np.atleast_2d(y)
@@ -134,3 +138,179 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
         return y
 
     return evaluate_gp_function
+
+
+def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
+               slice=None, beta=3, **kwargs):
+        """
+        Plot a 2D GP with uncertainty.
+
+        Parameters
+        ----------
+        gp: Instance of GPy.models.GPRegression
+        inputs: 2darray
+            The input parameters at which the GP is to be evaluated
+        predictions: ndarray
+            Can be used to manually pass the GP predictions, set to None to
+            use the gp directly. Is of the form (mean, variance)
+        figure: matplotlib figure
+            The figure on which to draw (ignored if axis is provided
+        axis: matplotlib axis
+            The axis on which to draw
+        slice: int
+            A list containing the input slices to be plotted, e.g. [0, 1]
+        beta: float
+            The confidence interval used
+        """
+        if slice is None :
+            if gp.kern.input_dim > 1:
+                raise NotImplementedError('This only works for 1D inputs')
+            else:
+                slice = 0
+
+        if axis is None:
+            if figure is None:
+                figure = plt.figure()
+                axis = figure.gca()
+            else:
+                axis = figure.gca()
+
+        if predictions is None:
+            mean, var = gp._raw_predict(inputs)
+        else:
+            mean, var = predictions
+
+        output = mean.squeeze()
+        std_dev = beta * np.sqrt(var.squeeze())
+
+        axis.fill_between(inputs[:, slice],
+                          output - std_dev,
+                          output + std_dev,
+                          facecolor='blue',
+                          alpha=0.3)
+
+        axis.plot(inputs[:, slice], output, **kwargs)
+        axis.plot(gp.X[:, slice], gp.Y, 'kx', ms=10, mew=3)
+        axis.set_xlim([np.min(inputs[:, slice]), np.max(inputs[:, slice])])
+
+
+def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
+               slices=None, beta=3, **kwargs):
+        """
+        Plot a 3D gp with uncertainty
+
+        Parameters
+        ----------
+        gp: Instance of GPy.models.GPRegression
+        inputs: 2darray
+            The input parameters at which the GP is to be evaluated
+        predictions: ndarray
+            Can be used to manually pass the GP predictions, set to None to
+            use the gp directly. Is of the form [mean, variance]
+        figure: matplotlib figure
+            The figure on which to draw (ignored if axis is provided
+        axis: matplotlib axis
+            The axis on which to draw
+        slices: list
+            A list containing the input slices to be plotted, e.g. [0, 1]
+        beta: float
+            The confidence interval used
+        """
+        if slices is None:
+            if gp.kern.input_dim > 2:
+                raise NotImplementedError('This only works for 1D inputs')
+            slices = [0, 1]
+        elif len(slices) > 2:
+            raise NotImplemented('Specify the correct number of slices')
+
+        if axis is None:
+            if figure is None:
+                figure = plt.figure()
+                axis = Axes3D(figure)
+            else:
+                axis = Axes3D(figure)
+
+        if predictions is None:
+            mean, var = gp._raw_predict(inputs)
+        else:
+            mean, var = predictions
+
+        output = mean.squeeze()
+
+        axis.plot_trisurf(inputs[:, slices[0]],
+                          inputs[:, slices[1]],
+                          output,
+                          cmap=cm.jet, linewidth=0.2, alpha=0.5)
+
+        axis.plot(gp.X[:, slices[0]],
+                  gp.X[:, slices[1]],
+                  gp.Y[:, 0],
+                  'o')
+
+        axis.set_xlim([np.min(inputs[:, slices[0]]),
+                       np.max(inputs[:, slices[0]])])
+
+        axis.set_ylim([np.min(inputs[:, slices[1]]),
+                       np.max(inputs[:, slices[1]])])
+
+
+def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
+        """
+        Plot a 3D gp with uncertainty
+
+        Parameters
+        ----------
+        gp: Instance of GPy.models.GPRegression
+        inputs: list of arrays/floats
+            The input parameters at which the GP is to be evaluated,
+            here instead of the combinations of inputs the individual inputs
+            that are spread in a grid are given. Only two of the arrays
+            should have more than one value (not fixed).
+        predictions: ndarray
+            Can be used to manually pass the GP predictions, set to None to
+            use the gp directly.
+        figure: matplotlib figure
+            The figure on which to draw (ignored if axis is provided
+        axis: matplotlib axis
+            The axis on which to draw
+        """
+
+        if axis is None:
+            if figure is None:
+                figure = plt.figure()
+                axis = figure.gca()
+            else:
+                axis = figure.gca()
+
+        slices = []
+        lengths = []
+        for i, inp in zip(range(len(inputs)), inputs):
+            if isinstance(inp, np.ndarray):
+                slices.append(i)
+                lengths.append(inp.shape[0])
+
+        # Convert to array with combinations of inputs
+        gp_inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
+
+        if predictions is None:
+            mean, var = gp._raw_predict(gp_inputs)
+        else:
+            mean, var = predictions
+
+        output = mean.squeeze()
+
+        c = axis.contour(inputs[slices[0]].squeeze(),
+                         inputs[slices[1]].squeeze(),
+                         output.reshape(*lengths),
+                         20)
+
+        plt.colorbar(c)
+        axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
+
+        print(slices)
+        print(np.min(inputs[slices[0]]))
+        axis.set_xlim([np.min(inputs[slices[0]]),
+                       np.max(inputs[slices[0]])])
+
+        axis.set_ylim([np.min(inputs[slices[1]]),
+                       np.max(inputs[slices[1]])])

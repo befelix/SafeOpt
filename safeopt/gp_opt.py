@@ -114,66 +114,29 @@ class GaussianProcessOptimization(object):
             inputs = self.inputs
             n_samples = self.num_samples
         else:
-            inputs = linearly_spaced_combinations(self.bounds,
-                                                  n_samples)
+            if self.gp.kern.input_dim == 1 or plot_3d:
+                inputs = linearly_spaced_combinations(self.bounds,
+                                                      n_samples)
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
-        if axis is None:
-            if figure is None:
-                fig = plt.figure()
-            else:
-                fig = figure
-
-            if plot_3d:
-                axis = Axes3D(fig)
-            else:
-                axis = fig.gca()
-
         if self.gp.kern.input_dim - self.num_contexts > 1:   # 3D plot
             if plot_3d:
-                output, var = self.gp._raw_predict(inputs)
-                # output += 2 * np.sqrt(var)
-
-                axis.plot_trisurf(inputs[:, 0], inputs[:, 1], output[:, 0],
-                                  cmap=cm.jet, linewidth=0.2, alpha=0.5)
-
-                axis.plot(self.gp[0].X[:, 0],
-                          self.gp[0].X[:, 1],
-                          self.gp[0].Y[:, 0],
-                          'o')
-
+                plot_3d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
             else:
-                # Use 2D level set plot, 3D is too slow
-                output, var = self.gp._raw_predict(inputs)
-                if np.all(output == output[0, 0]):
-                    plt.xlim(self.bounds[0])
-                    plt.ylim(self.bounds[1])
-                    return None
-                c = axis.contour(np.linspace(self.bounds[0][0],
+                plot_contour_gp(self.gp,
+                                [np.linspace(self.bounds[0][0],
                                              self.bounds[0][1],
                                              n_samples[0]),
                                  np.linspace(self.bounds[1][0],
                                              self.bounds[1][1],
-                                             n_samples[1]),
-                                 output.reshape(*n_samples),
-                                 20)
-                plt.colorbar(c)
-                axis.plot(self.gp.X[:, 0], self.gp.X[:, 1], 'ob')
+                                             n_samples[1])],
+                                figure=figure,
+                                axis=axis)
 
         else:   # 2D plots with uncertainty
-            output, var = self.gp._raw_predict(inputs)
-            output = output.squeeze()
-            std_dev = self.beta(self.t) * np.sqrt(var.squeeze())
-            axis.fill_between(inputs[:, 0],
-                              output - std_dev,
-                              output + std_dev,
-                              facecolor='blue',
-                              alpha=0.3)
-            axis.plot(inputs[:, 0], output, **kwargs)
-            axis.plot(self.gp.X[:, 0], self.gp.Y, 'kx', ms=10, mew=3)
-            # self.gp.plot(plot_limits=np.array(self.bounds).squeeze(),
-            #              ax=axis)
+            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis,
+                       slice=0, **kwargs)
 
     def add_new_data_point(self, x, y, gp=None):
         """
@@ -310,12 +273,13 @@ class SafeOpt(GaussianProcessOptimization):
             self.fmin = [self.fmin] * len(self.gps)
             if len(self.gps) > 1:
                 self.fmin[0] = None
-        self.fmin = np.asarray(self.fmin).squeeze()
+        self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
 
         if self.liptschitz is not None:
             if not isinstance(self.liptschitz, list):
                self.liptschitz = [self.liptschitz] * len(self.gps)
-            self.liptschitz = np.asarray(self.liptschitz).squeeze()
+            self.liptschitz = np.atleast_1d(
+                    np.asarray(self.liptschitz).squeeze())
 
         # Value intervals
         self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
