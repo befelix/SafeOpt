@@ -423,20 +423,20 @@ class SafeOpt(GaussianProcessOptimization):
         # For the run of the algorithm we do not need to calculate the
         # full set of potential expanders:
         # We can skip the ones already in M and ones that have lower
-        # variance than the maximum variance in M, max_var.
+        # variance than the maximum variance in M, max_var or the threshold.
         # Amongst the remaining ones we only need to find the
         # potential expander with maximum variance
         if full_sets:
             s = self.S
         else:
-            # skip points in M
+            # skip points in M, they will already be evaluated
             s = np.logical_and(self.S, ~self.M)
 
             # Remove points with a variance that is too small
             s[s] = np.max(u[s, :] - l[s, :], axis=1) > max(max_var,
                                                            self.threshold)
 
-        # no points to evalute for G, exit
+        # no need to evaluate any points as expanders in G, exit
         if not np.any(s):
             return
 
@@ -482,27 +482,39 @@ class SafeOpt(GaussianProcessOptimization):
 
         for index in sort_index:
             if self.use_lipschitz:
+                # Distance between current index point and all other unsafe
+                # points
                 d = cdist(self.inputs[s, :][[index], :],
                           self.inputs[~self.S, :])
+
+                # Check if expander for all GPs
                 for i in range(len(self.gps)):
+                    # Skip evaluation if 'no' safety constraint
                     if self.fmin[i] == -np.inf:
                         continue
+                    # Safety: u - L * d >= fmin
                     G_safe[index] =\
                         np.any(u[s, i][index] - self.liptschitz[i] * d >=
                                self.fmin[i])
+                    # Stop evaluating if not expander according to one
+                    # safety constraint
                     if not G_safe[index]:
                         break
             else:
+                # Check if expander for all GPs
                 for i in range(len(self.gps)):
+                    # Skip evlauation if 'no' safety constraint
                     if self.fmin[i] == -np.inf:
                         continue
-                    # Add safe point with it's max possible value to the gp
+
+                    # Add safe point with its max possible value to the gp
                     self.add_new_data_point(self.inputs[s, :][index, :],
                                             u[s, i][index],
                                             gp=self.gps[i])
 
-                    # Prediction of unsafe points based on that
-                    mean2, var2 = self.gps[i]._raw_predict(self.inputs[~self.S])
+                    # Prediction of previously unsafe points based on that
+                    mean2, var2 =\
+                        self.gps[i]._raw_predict(self.inputs[~self.S])
 
                     # Remove the fake data point from the GP again
                     self.remove_last_data_point(gp=self.gps[i])
@@ -511,8 +523,11 @@ class SafeOpt(GaussianProcessOptimization):
                     var2 = var2.squeeze()
                     l2 = mean2 - beta * np.sqrt(var2)
 
-                    # If the unsafe lower bound is suddenly above fmin: expander
+                    # If any unsafe lower bound is suddenly above fmin then
+                    # the point is an expander
                     G_safe[index] = np.any(l2 >= self.fmin[i])
+
+                    # Break if one safety GP is not an expander
                     if not G_safe[index]:
                         break
 
@@ -522,14 +537,8 @@ class SafeOpt(GaussianProcessOptimization):
             if G_safe[index] and not full_sets:
                 break
 
+        # Update safe set (if full_sets is False this is at most one point
         self.G[s] = G_safe
-
-        # else:
-        #     # Doing the same partial-prediction stuff as above is possible,
-        #     # but not implemented since numpy is pretty fast anyways
-        #     d = cdist(self.inputs[s], self.inputs[~self.S])
-        #     self.G[s] = np.any(
-        #         C_u[s, None] - self.liptschitz * d >= self.fmin, 1)
 
     def compute_new_query_point(self):
         """
