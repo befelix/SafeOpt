@@ -345,6 +345,11 @@ class SafeOpt(GaussianProcessOptimization):
             self.Q[:, 2 * i] = mean - beta * std_dev
             self.Q[:, 2 * i + 1] = mean + beta * std_dev
 
+    def compute_safe_set(self):
+        """Compute only the safe set based on the current confidence bounds."""
+        # Update safe set
+        self.S[:] = np.all(self.Q[:, ::2] > self.fmin, axis=1)
+
     def compute_sets(self, full_sets=False):
         """
         Compute the safe set of points, based on current confidence bounds.
@@ -358,11 +363,10 @@ class SafeOpt(GaussianProcessOptimization):
             computations that are not relevant for running SafeOpt
             (This option is only useful for plotting purposes)
         """
-
         beta = self.beta(self.t)
 
         # Update safe set
-        self.S[:] = np.all(self.Q[:, ::2] > self.fmin, axis=1)
+        self.compute_safe_set()
 
         # Reference to confidence intervals
         l, u = self.Q[:, :2].T
@@ -523,7 +527,9 @@ class SafeOpt(GaussianProcessOptimization):
             A vector containing the current context
         """
         # Update confidence intervals based on current estimate
-        self.update_confidence_intervals(context=context)
+        if (context is not None and not
+                np.all(self.inputs[0, -self.num_contexts:] == context)):
+            self.update_confidence_intervals(context=context)
         # Update the sets
         self.compute_sets()
         # Get new input value
@@ -544,10 +550,17 @@ class SafeOpt(GaussianProcessOptimization):
                 self.add_new_data_point(x, value[i], gp=self.gps[i])
         self.t += 1
 
-    def get_maximum(self):
+        self.update_confidence_intervals(context=context)
+
+    def get_maximum(self, context=None):
         """
         Return the current estimate for the maximum.
 
+        Parameters
+        ----------
+        context: np.array
+            A specific context that should be used. If None the current
+            confidence intervals are used without modification.
         Returns
         -------
         x - ndarray
@@ -556,7 +569,13 @@ class SafeOpt(GaussianProcessOptimization):
             Maximum value
 
         """
-        l = self.Q[:, 0]
+        if (context is not None and not
+                np.all(context == np.inputs[0, -self.num_contexts:])):
+            self.update_confidence_intervals(context=context)
+            self.compute_safe_set()
+
+        l = self.Q[self.S, 0]
 
         max_id = np.argmax(l)
-        return self.inputs[max_id, :], l[max_id]
+        return (self.inputs[self.S, :][max_id, :-self.num_contexts or None],
+                l[max_id])
