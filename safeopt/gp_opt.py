@@ -513,10 +513,11 @@ class SafeOpt(GaussianProcessOptimization):
         sets M and G.
         """
         # Get lower and upper bounds
-        l, u = self.Q[:, :2].T
+        l = self.Q[:, ::2]
+        u = self.Q[:, 1::2]
 
         MG = np.logical_or(self.M, self.G)
-        value = (u[MG] - l[MG]) / self.scaling
+        value = np.max((u[MG] - l[MG]) / self.scaling, axis=1)
         return self.inputs[MG][np.argmax(value)]
 
     def optimize(self, context=None):
