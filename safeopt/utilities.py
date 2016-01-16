@@ -141,7 +141,7 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
 
 
 def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
-               slice=None, beta=3, **kwargs):
+               fixed_inputs=None, beta=3, **kwargs):
         """
         Plot a 2D GP with uncertainty.
 
@@ -157,16 +157,19 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             The figure on which to draw (ignored if axis is provided
         axis: matplotlib axis
             The axis on which to draw
-        slice: int
-            A list containing the input slices to be plotted, e.g. [0, 1]
+        fixed_inputs: list
+            A list containing the the fixed inputs and their corresponding
+            values, e.g., [(0, 3.2), (4, -2.43)]. Set the value to None if
+            it's not fixed, but should not be a plotted axis either
         beta: float
             The confidence interval used
         """
-        if slice is None:
+        if fixed_inputs is None:
             if gp.kern.input_dim > 1:
                 raise NotImplementedError('This only works for 1D inputs')
-            else:
-                slice = 0
+            fixed_inputs = []
+        elif gp.kern.input_dim - len(fixed_inputs) != 2:
+            raise NotImplemented('This only works for 1D inputs')
 
         ms = kwargs.pop('ms', 10)
         mew = kwargs.pop('mew', 3)
@@ -179,6 +182,14 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             else:
                 axis = figure.gca()
 
+        # Get a list of unfixed inputs to plot
+        unfixed = list(range(gp.kern.input_dim))
+        for dim, val in fixed_inputs:
+            if val is not None:
+                inputs[:, dim] = val
+            unfixed.remove(dim)
+
+        # Compute GP predictions if not provided
         if predictions is None:
             mean, var = gp._raw_predict(inputs)
         else:
@@ -187,20 +198,21 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
         output = mean.squeeze()
         std_dev = beta * np.sqrt(var.squeeze())
 
-        axis.fill_between(inputs[:, slice],
+        axis.fill_between(inputs[:, unfixed[0]],
                           output - std_dev,
                           output + std_dev,
                           facecolor='blue',
                           alpha=0.3)
 
-        axis.plot(inputs[:, slice], output, **kwargs)
-        axis.scatter(gp.X[:, slice], gp.Y[:, 0], s=20*ms, marker='x',
+        axis.plot(inputs[:, unfixed[0]], output, **kwargs)
+        axis.scatter(gp.X[:, unfixed[0]], gp.Y[:, 0], s=20 * ms, marker='x',
                      linewidths=mew, color=point_color)
-        axis.set_xlim([np.min(inputs[:, slice]), np.max(inputs[:, slice])])
+        axis.set_xlim([np.min(inputs[:, unfixed[0]]),
+                       np.max(inputs[:, unfixed[0]])])
 
 
 def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
-               slices=None, beta=3, **kwargs):
+               fixed_inputs=None, beta=3, **kwargs):
         """
         Plot a 3D gp with uncertainty
 
@@ -216,17 +228,19 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             The figure on which to draw (ignored if axis is provided
         axis: matplotlib axis
             The axis on which to draw
-        slices: list
-            A list containing the input slices to be plotted, e.g. [0, 1]
+        fixed_inputs: list
+            A list containing the the fixed inputs and their corresponding
+            values, e.g., [(0, 3.2), (4, -2.43)]. Set the value to None if
+            it's not fixed, but should not be a plotted axis either
         beta: float
             The confidence interval used
         """
-        if slices is None:
+        if fixed_inputs is None:
             if gp.kern.input_dim > 2:
-                raise NotImplementedError('This only works for 1D inputs')
-            slices = [0, 1]
-        elif len(slices) > 2:
-            raise NotImplemented('Specify the correct number of slices')
+                raise NotImplementedError('This only works for 2D inputs')
+            fixed_inputs = []
+        elif gp.kern.input_dim - len(fixed_inputs) != 2:
+            raise NotImplemented('Only two inputs can be unfixed')
 
         if axis is None:
             if figure is None:
@@ -235,6 +249,14 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             else:
                 axis = Axes3D(figure)
 
+        # Get a list of unfixed inputs to plot
+        unfixed = list(range(gp.kern.input_dim))
+        for dim, val in fixed_inputs:
+            if val is not None:
+                inputs[:, dim] = val
+            unfixed.remove(dim)
+
+        # Compute GP predictions if not provided
         if predictions is None:
             mean, var = gp._raw_predict(inputs)
         else:
@@ -242,21 +264,21 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
 
         output = mean.squeeze()
 
-        axis.plot_trisurf(inputs[:, slices[0]],
-                          inputs[:, slices[1]],
+        axis.plot_trisurf(inputs[:, unfixed[0]],
+                          inputs[:, unfixed[1]],
                           output,
                           cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
-        axis.plot(gp.X[:, slices[0]],
-                  gp.X[:, slices[1]],
+        axis.plot(gp.X[:, unfixed[0]],
+                  gp.X[:, unfixed[1]],
                   gp.Y[:, 0],
                   'o')
 
-        axis.set_xlim([np.min(inputs[:, slices[0]]),
-                       np.max(inputs[:, slices[0]])])
+        axis.set_xlim([np.min(inputs[:, unfixed[0]]),
+                       np.max(inputs[:, unfixed[0]])])
 
-        axis.set_ylim([np.min(inputs[:, slices[1]]),
-                       np.max(inputs[:, slices[1]])])
+        axis.set_ylim([np.min(inputs[:, unfixed[1]]),
+                       np.max(inputs[:, unfixed[1]])])
 
 
 def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
