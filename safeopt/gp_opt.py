@@ -243,10 +243,14 @@ class SafeOpt(GaussianProcessOptimization):
     threshold: float
         The algorithm will not try to expand any points that are below this
         threshold. This makes the algorithm stop expanding points eventually.
+    scaling: list of floats
+        A list used to scale the GP uncertainties to compensate for
+        different input sizes. Defaults to no scaling
 
     """
     def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0, num_contexts=0, threshold=0):
+                 lipschitz=None, beta=3.0, num_contexts=0, threshold=0,
+                 scaling=None):
 
         if isinstance(gp, list):
             self.gps = gp
@@ -260,6 +264,11 @@ class SafeOpt(GaussianProcessOptimization):
         self.fmin = fmin
         self.liptschitz = lipschitz
         self.threshold = threshold
+        self.scaling = scaling
+        if self.scaling is None:
+            self.scaling = np.ones(len(self.gps))
+        else:
+            self.scaling = np.asarray(self.scaling)
 
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
@@ -370,7 +379,7 @@ class SafeOpt(GaussianProcessOptimization):
         # Maximizers: safe upper bound above best, safe lower bound
         self.M[:] = False
         self.M[self.S] = u[self.S] >= np.max(l[self.S])
-        max_var = np.max(u[self.M] - l[self.M])
+        max_var = np.max(u[self.M] - l[self.M]) / self.scaling[0]
 
         # Optimistic set of possible expanders
         l = self.Q[:, ::2]
@@ -391,8 +400,8 @@ class SafeOpt(GaussianProcessOptimization):
             s = np.logical_and(self.S, ~self.M)
 
             # Remove points with a variance that is too small
-            s[s] = np.max(u[s, :] - l[s, :], axis=1) > max(max_var,
-                                                           self.threshold)
+            s[s] = (np.max((u[s, :] - l[s, :]) / self.scaling, axis=1) >
+                    max(max_var, self.threshold))
 
         # no need to evaluate any points as expanders in G, exit
         if not np.any(s):
@@ -507,7 +516,7 @@ class SafeOpt(GaussianProcessOptimization):
         l, u = self.Q[:, :2].T
 
         MG = np.logical_or(self.M, self.G)
-        value = u[MG] - l[MG]
+        value = (u[MG] - l[MG]) / self.scaling
         return self.inputs[MG][np.argmax(value)]
 
     def optimize(self, context=None):
