@@ -11,14 +11,10 @@ from .utilities import *
 import sys
 import numpy as np                          # ...
 import scipy as sp
-import GPy                                  # GPs
 from GPy.util.linalg import dpotrs          # For rank-1 updates
 from GPy.inference.latent_function_inference.posterior import Posterior
-import matplotlib.pyplot as plt             # Plotting
 from collections import Sequence            # isinstance(...,Sequence)
-from matplotlib import cm                   # 3D plot colors
 from scipy.spatial.distance import cdist    # Efficient distance computation
-from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 
 
 __all__ = ['SafeOpt', 'GaussianProcessOptimization']
@@ -106,10 +102,6 @@ class GaussianProcessOptimization(object):
         plot_3d: boolean
             If set to true shows a 3D plot for 2 dimensional data
         """
-        # 4d plots are tough...
-        if self.gp.kern.input_dim > 2:
-            return None
-
         if n_samples is None:
             inputs = self.inputs
             n_samples = self.num_samples
@@ -120,7 +112,11 @@ class GaussianProcessOptimization(object):
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
-        if self.gp.kern.input_dim - self.num_contexts > 1:   # 3D plot
+        if self.gp.kern.input_dim - self.num_contexts == 1:   # 3D plot
+            # 2D plots with uncertainty
+            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis,
+                       input_slice=0, **kwargs)
+        else:
             if plot_3d:
                 plot_3d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
             else:
@@ -133,10 +129,6 @@ class GaussianProcessOptimization(object):
                                              n_samples[1])],
                                 figure=figure,
                                 axis=axis)
-
-        else:   # 2D plots with uncertainty
-            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis,
-                       slice=0, **kwargs)
 
     def add_new_data_point(self, x, y, gp=None):
         """
