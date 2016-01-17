@@ -179,7 +179,10 @@ class GaussianProcessOptimization(object):
         gp.X = np.vstack((gp.X, x))
         gp.Y = np.vstack((gp.Y, y))
 
-        alpha, _ = dpotrs(L_new, gp.Y, lower=1)
+        if gp.mean_function is None:
+            alpha, _ = dpotrs(L_new, gp.Y, lower=1)
+        else:
+            alpha, _ = dpotrs(L_new, gp.Y - gp.mean_function.f(gp.X), lower=1)
         gp.posterior = Posterior(woodbury_chol=L_new,
                                  woodbury_vector=alpha,
                                  K=K_new)
