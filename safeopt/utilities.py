@@ -262,11 +262,9 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
         else:
             mean, var = predictions
 
-        output = mean.squeeze()
-
         axis.plot_trisurf(inputs[:, unfixed[0]],
                           inputs[:, unfixed[1]],
-                          output,
+                          mean[:, 0],
                           cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
         axis.plot(gp.X[:, unfixed[0]],

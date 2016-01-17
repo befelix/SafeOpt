@@ -114,8 +114,7 @@ class GaussianProcessOptimization(object):
 
         if self.gp.kern.input_dim - self.num_contexts == 1:   # 3D plot
             # 2D plots with uncertainty
-            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis,
-                       input_slice=0, **kwargs)
+            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
         else:
             if plot_3d:
                 plot_3d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
