@@ -582,7 +582,7 @@ class SafeOpt(GaussianProcessOptimization):
 
         """
         if (context is not None and not
-                np.all(context == np.inputs[0, -self.num_contexts:])):
+                np.all(context == self.inputs[0, -self.num_contexts:])):
             self.update_confidence_intervals(context=context)
             self.compute_safe_set()
 
