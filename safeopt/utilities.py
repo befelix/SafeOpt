@@ -299,7 +299,8 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
         axis: matplotlib axis
             The axis on which to draw
         """
-
+        # TODO
+        beta = 3
         if axis is None:
             if figure is None:
                 figure = plt.figure()
@@ -323,13 +324,13 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
             mean, var = predictions
 
         output = mean.squeeze()
+        if not np.all(output == output[0]):
+            c = axis.contour(inputs[slices[0]].squeeze(),
+                             inputs[slices[1]].squeeze(),
+                             output.reshape(*lengths),
+                             20)
 
-        c = axis.contour(inputs[slices[0]].squeeze(),
-                         inputs[slices[1]].squeeze(),
-                         output.reshape(*lengths),
-                         20)
-
-        plt.colorbar(c)
+            plt.colorbar(c)
         axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
 
         axis.set_xlim([np.min(inputs[slices[0]]),
