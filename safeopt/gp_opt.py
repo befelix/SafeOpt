@@ -586,6 +586,10 @@ class SafeOpt(GaussianProcessOptimization):
             self.update_confidence_intervals(context=context)
             self.compute_safe_set()
 
+        # Return nothing if there are no safe points
+        if not np.any(self.S):
+            return None
+
         l = self.Q[self.S, 0]
 
         max_id = np.argmax(l)
