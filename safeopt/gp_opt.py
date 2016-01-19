@@ -447,7 +447,7 @@ class SafeOpt(GaussianProcessOptimization):
                                                axis=1))
         else:
             # Sort index is just an enumeration of all safe states
-            sort_index = range(G_safe)
+            sort_index = range(len(G_safe))
 
         for index in sort_index:
             if self.use_lipschitz:
