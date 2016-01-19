@@ -520,24 +520,32 @@ class SafeOpt(GaussianProcessOptimization):
 
         MG = np.logical_or(self.M, self.G)
         value = np.max((u[MG] - l[MG]) / self.scaling, axis=1)
-        return self.inputs[MG][np.argmax(value)]
+        return self.inputs[MG, :][np.argmax(value), :]
 
-    def optimize(self, context=None):
+    def optimize(self, context=None, ucb=False):
         """Run one step of bayesian optimization.
 
         Parameters
         ----------
         context: ndarray
             A vector containing the current context
+        ucb: bool
+            If True the safe-ucb criteria is used instead.
         """
         # Update confidence intervals based on current estimate
         if (context is not None and not
                 np.all(self.inputs[0, -self.num_contexts:] == context)):
             self.update_confidence_intervals(context=context)
         # Update the sets
-        self.compute_sets()
-        # Get new input value
-        x = self.compute_new_query_point()
+        if ucb:
+            self.compute_safe_set()
+            max_id = np.argmax(self.Q[self.S, 1])
+            x = self.inputs[self.S, :][max_id, :]
+        else:
+            self.compute_sets()
+            # Get new input value
+            x = self.compute_new_query_point()
+
         # Sample noisy output
         if context is None:
             value = self.function(x)
