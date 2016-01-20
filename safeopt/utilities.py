@@ -300,7 +300,6 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
             The axis on which to draw
         """
         # TODO
-        beta = 3
         if axis is None:
             if figure is None:
                 figure = plt.figure()
@@ -308,29 +307,30 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
             else:
                 axis = figure.gca()
 
+        # Find which inputs are fixed to constant values
         slices = []
         lengths = []
-        for i, inp in zip(range(len(inputs)), inputs):
+        for i, inp in enumerate(inputs):
             if isinstance(inp, np.ndarray):
                 slices.append(i)
                 lengths.append(inp.shape[0])
 
-        # Convert to array with combinations of inputs
-        gp_inputs = np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
-
+        mesh = np.meshgrid(*inputs, indexing='ij')
         if predictions is None:
-            mean, var = gp._raw_predict(gp_inputs)
+            # Convert to array with combinations of inputs
+            gp_inputs = np.array([x.ravel() for x in mesh]).T
+            mean = gp._raw_predict(gp_inputs)[0]
         else:
-            mean, var = predictions
+            mean = predictions[0]
 
-        output = mean.squeeze()
-        if not np.all(output == output[0]):
-            c = axis.contour(inputs[slices[0]].squeeze(),
-                             inputs[slices[1]].squeeze(),
-                             output.reshape(*lengths),
+        if not np.all(mean == mean[0]):
+            # Need to squeeze the added dimensions caused by fixed inputs
+            c = axis.contour(mesh[slices[0]].squeeze(),
+                             mesh[slices[1]].squeeze(),
+                             mean.squeeze().reshape(*lengths),
                              20)
-
             plt.colorbar(c)
+
         axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
 
         axis.set_xlim([np.min(inputs[slices[0]]),
