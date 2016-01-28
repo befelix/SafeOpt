@@ -279,7 +279,8 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                        np.max(inputs[:, unfixed[1]])])
 
 
-def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
+def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None,
+                    colorbar=True, **kwargs):
         """
         Plot a 3D gp with uncertainty
 
@@ -322,16 +323,18 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None):
         else:
             mean = predictions[0]
 
+        c_bar = None
         if not np.all(mean == mean[0]):
             # Need to squeeze the added dimensions caused by fixed inputs
             c = axis.contour(mesh[slices[0]].squeeze(),
                              mesh[slices[1]].squeeze(),
                              mean.squeeze().reshape(*lengths),
-                             20)
-            c_bar = plt.colorbar(c)
+                             20,
+                             **kwargs)
+            if colorbar:
+                c_bar = plt.colorbar(c)
         else:
             c = None
-            c_bar = None
 
         data = axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
 
