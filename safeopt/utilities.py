@@ -234,6 +234,11 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             it's not fixed, but should not be a plotted axis either
         beta: float
             The confidence interval used
+
+        Returns
+        -------
+        surface: matplotlib trisurf plot
+        data: matplotlib plot for data points
         """
         if fixed_inputs is None:
             if gp.kern.input_dim > 2:
@@ -262,21 +267,23 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
         else:
             mean, var = predictions
 
-        axis.plot_trisurf(inputs[:, unfixed[0]],
-                          inputs[:, unfixed[1]],
-                          mean[:, 0],
-                          cmap=cm.jet, linewidth=0.2, alpha=0.5)
+        surf = axis.plot_trisurf(inputs[:, unfixed[0]],
+                                 inputs[:, unfixed[1]],
+                                 mean[:, 0],
+                                 cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
-        axis.plot(gp.X[:, unfixed[0]],
-                  gp.X[:, unfixed[1]],
-                  gp.Y[:, 0],
-                  'o')
+        data = axis.plot(gp.X[:, unfixed[0]],
+                         gp.X[:, unfixed[1]],
+                         gp.Y[:, 0],
+                         'o')
 
         axis.set_xlim([np.min(inputs[:, unfixed[0]]),
                        np.max(inputs[:, unfixed[0]])])
 
         axis.set_ylim([np.min(inputs[:, unfixed[1]]),
                        np.max(inputs[:, unfixed[1]])])
+
+        return surf, data
 
 
 def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None,
