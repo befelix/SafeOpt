@@ -375,7 +375,7 @@ class SafeOpt(GaussianProcessOptimization):
         l, u = self.Q[:, :2].T
 
         if not np.any(self.S):
-            raise EnvironmentError('There are no safe points to evaluate.')
+            return
 
         # Set of possible maximisers
         # Maximizers: safe upper bound above best, safe lower bound
@@ -407,6 +407,8 @@ class SafeOpt(GaussianProcessOptimization):
 
         # no need to evaluate any points as expanders in G, exit
         if not np.any(s):
+            self.G[:] = False
+            self.M[:] = False
             return
 
         # def sort_generator(array):
@@ -514,6 +516,9 @@ class SafeOpt(GaussianProcessOptimization):
         Computes a new point at which to evaluate the function, based on the
         sets M and G.
         """
+        if not np.any(self.S):
+            raise EnvironmentError('There are no safe points to evaluate.')
+
         # Get lower and upper bounds
         l = self.Q[:, ::2]
         u = self.Q[:, 1::2]
