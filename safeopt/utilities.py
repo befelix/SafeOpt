@@ -299,6 +299,12 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None,
             The figure on which to draw (ignored if axis is provided
         axis: matplotlib axis
             The axis on which to draw
+
+        Returns
+        -------
+        contour: matplotlib contour plot
+        colorbar: matplotlib colorbar
+        points: matplotlib plot
         """
         if axis is None:
             if figure is None:
