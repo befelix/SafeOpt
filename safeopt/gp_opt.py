@@ -375,6 +375,8 @@ class SafeOpt(GaussianProcessOptimization):
         l, u = self.Q[:, :2].T
 
         if not np.any(self.S):
+            self.M[:] = False
+            self.G[:] = False
             return
 
         # Set of possible maximisers
@@ -405,11 +407,9 @@ class SafeOpt(GaussianProcessOptimization):
             s[s] = (np.max((u[s, :] - l[s, :]) / self.scaling, axis=1) >
                     max(max_var, self.threshold))
 
-        # no need to evaluate any points as expanders in G, exit
-        if not np.any(s):
-            self.G[:] = False
-            self.M[:] = False
-            return
+            if not np.any(s):
+                # no need to evaluate any points as expanders in G, exit
+                return
 
         # def sort_generator(array):
         #     """Return the indeces of the biggest elements in order.
