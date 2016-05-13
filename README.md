@@ -19,17 +19,20 @@ The easiest way to install the necessary python libraries is by installing pip (
 
 ## Usage
 
-For examples see the two interactive example ipython notebooks. Make sure that the ```ipywidgets``` module is installed.<br>
+<b>The easiest way to get familiar with the library is to take a look at the example ipython notebooks!</b>
+
+Make sure that the ```ipywidgets``` module is installed.<br>
 Additional functions and classes are documented on <a href="http://safeopt.readthedocs.org/en/latest/" target="_blank">Read The Docs</a>.
 <br><br>
 
+##### Details
 The algorithm is implemented in the ```gp_opt.py``` file. Next to some helper
 functions, the class ```SafeOpt``` implements the core algorithm. It can be
 initialized as
 
 ```SafeOpt(function, gp, parameter_set, fmin, lipschitz=None, beta=3.0)```
 
-where ```function``` is the function that we are trying to optimize, ```gp``` is a Gaussian process from the ```GPy``` toolbox in <url>https://github.com/SheffieldML/GPy</url>. This Gaussian process should already include the points of the initial, safe set. The area over which the function is optimized is defined by ```bounds```, which is a sequence of lower and upper bounds for each variable (```[[x1_min, x1_max], [x2_min, x2_max]...]```). The ```parameter_set``` is a 2d-array of sampling locations for the GP, which is used to compute new evaluation points. It can, for example, be create with the ```linearly_spaced_combinations``` function in the safeopt library. Lastly, fmin defines the safe lower bounds on the function values.
+where ```function``` is the function that we are trying to optimize, ```gp``` is a Gaussian process from the ```GPy``` toolbox in <url>https://github.com/SheffieldML/GPy</url>. This Gaussian process should already include the points of the initial, safe set. The ```parameter_set``` is a 2d-array of sampling locations for the GP, which is used to compute new evaluation points. It can, for example, be create with the ```linearly_spaced_combinations``` function in the safeopt library. Lastly, fmin defines the safe lower bounds on the function values.
 
 The class several optional arguments: The ```lipschitz``` argument can be used to specify the Lipschitz constant to determine the set of expanders. If it is not None, the algorithm in [1] is used to determine expanders directly with the confidence itnervals. The confidence interval that is used can be specified by ```beta```, which can be a constant or a function of the iteration number.
 
