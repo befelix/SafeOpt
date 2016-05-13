@@ -85,6 +85,15 @@ class GaussianProcessOptimization(object):
         self.num_samples = [len(np.unique(self._inputs[:, i]))
                             for i in range(self._inputs.shape[1])]
 
+    @property
+    def context_fixed_inputs(self):
+        """The fixed inputs for the current context"""
+        n = self.gp.input_dim - 1
+        nc = self.num_contexts
+        if nc > 0:
+            contexts = self.inputs[0, -self.num_contexts:]
+            return list(zip(range(n, n - nc, -1), contexts))
+
     def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False,
              **kwargs):
         """
@@ -112,7 +121,11 @@ class GaussianProcessOptimization(object):
             if not isinstance(n_samples, Sequence):
                 n_samples = [n_samples] * len(self.bounds)
 
-        if self.gp.kern.input_dim - self.num_contexts == 1:   # 3D plot
+        # Fix contexts to their current values
+        if self.num_contexts > 0 and 'fixed_inputs' not in kwargs:
+            kwargs.update(fixed_inputs=self.context_fixed_inputs)
+
+        if self.gp.input_dim - self.num_contexts == 1:
             # 2D plots with uncertainty
             plot_2d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
         else:
