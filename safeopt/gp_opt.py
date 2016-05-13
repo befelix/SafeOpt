@@ -20,7 +20,7 @@ from scipy.spatial.distance import cdist    # Efficient distance computation
 __all__ = ['SafeOpt', 'GaussianProcessOptimization']
 
 
-# For python 2 (python 3 is not yet supported by GPy)
+# For python 2 compatibility
 if sys.version_info[0] < 3:
     range = xrange
 
