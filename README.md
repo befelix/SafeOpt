@@ -31,12 +31,7 @@ initialized as
 
 where ```function``` is the function that we are trying to optimize, ```gp``` is a Gaussian process from the ```GPy``` toolbox in <url>https://github.com/SheffieldML/GPy</url>. This Gaussian process should already include the points of the initial, safe set. The area over which the function is optimized is defined by ```bounds```, which is a sequence of lower and upper bounds for each variable (```[[x1_min, x1_max], [x2_min, x2_max]...]```). The ```parameter_set``` is a 2d-array of sampling locations for the GP, which is used to compute new evaluation points. It can, for example, be create with the ```linearly_spaced_combinations``` function in the safeopt library. Lastly, fmin defines the safe lower bounds on the function values.
 
-The class has two optional arguments: when ```lipschitz``` is not None, the original SafeOpt algorithm from [1] without self-contained intervals is used, instead of the modified algorithm from [2]. The confidence interval that is used can be specified by ```beta```, which can be a constant or a function of the iteration number.
-
-There are two internal variables that influence the behavior of the algorithm:
-```GaussianProcessSafeOpt.use_lipschitz``` determines whether to use the
-lipschitz constant or the Gaussian process confidence intervals to determine
- the set of expanders.
+The class several optional arguments: The ```lipschitz``` argument can be used to specify the Lipschitz constant to determine the set of expanders. If it is not None, the algorithm in [1] is used to determine expanders directly with the confidence itnervals. The confidence interval that is used can be specified by ```beta```, which can be a constant or a function of the iteration number.
 
 Once the class is initialized, its ```optimize``` method can be used to sample a new point. The ```plot``` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
 
