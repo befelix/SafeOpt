@@ -168,7 +168,7 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             if gp.kern.input_dim > 1:
                 raise NotImplementedError('This only works for 1D inputs')
             fixed_inputs = []
-        elif gp.kern.input_dim - len(fixed_inputs) != 2:
+        elif gp.kern.input_dim - len(fixed_inputs) != 1:
             raise NotImplemented('This only works for 1D inputs')
 
         ms = kwargs.pop('ms', 10)
