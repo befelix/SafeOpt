@@ -7,7 +7,7 @@ This code implements an adapted version of the safe, Bayesian optimization algor
 
 [1] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016 <a href="http://arxiv.org/abs/1509.01066" target="_blank">arXiv:1509.01066 [cs.RO]</a>
 
-[2] F. Berkenkamp, A. Krause, A. P. Schoellig, "Bayesian Optimization with Safety Constraints: Safe and Automatic Parameter Tuning in Robotics", ArXiv, 2016, <a href="http://arxiv.org/abs/1602.04450" target=_blank>arXiv:1509.01066 [cs.RO]</a>
+[2] F. Berkenkamp, A. Krause, A. P. Schoellig, "Bayesian Optimization with Safety Constraints: Safe and Automatic Parameter Tuning in Robotics", ArXiv, 2016, <a href="http://arxiv.org/abs/1602.04450" target=_blank>arXiv:1602.04450 [cs.RO]</a>
 
 [3] Y. Sui, A. Gotovos, J. W. Burdick, and A. Krause, “Safe exploration for optimization with Gaussian processes” in Proc. of the International Conference on Machine Learning (ICML), 2015, pp. 997–1005. <a href="https://las.inf.ethz.ch/files/sui15icml-long.pdf" target=_blank>[PDF]</a>
 
