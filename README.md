@@ -5,7 +5,7 @@ This code implements an adapted version of the safe, Bayesian optimization algor
 ###### A video of the experiments in [1]:
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=GiqNQdzc5TI" target="_blank"><img src="http://img.youtube.com/vi/GiqNQdzc5TI/0.jpg" alt="SafeOpt video" width="240" height="180" border="0" /></a>
 
-[1] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016 <a href="http://arxiv.org/abs/1509.01066" target="_blank">arXiv:1509.01066 [cs.RO]</a>
+[1] F. Berkenkamp, A. P. Schoellig, A. Krause, "Safe Controller Optimization for Quadrotors with Gaussian Processes" in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, pp. 491-496, <a href="http://arxiv.org/abs/1509.01066" target="_blank">arXiv:1509.01066 [cs.RO]</a>
 
 [2] F. Berkenkamp, A. Krause, A. P. Schoellig, "Bayesian Optimization with Safety Constraints: Safe and Automatic Parameter Tuning in Robotics", ArXiv, 2016, <a href="http://arxiv.org/abs/1602.04450" target=_blank>arXiv:1602.04450 [cs.RO]</a>
 
