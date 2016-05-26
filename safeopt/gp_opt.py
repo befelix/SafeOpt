@@ -159,8 +159,8 @@ class GaussianProcessOptimization(object):
             gp = self.gp
 
         # Add data to GP
-        # self.gp.set_XY(np.vstack([self.gp.X, x]),
-        #                np.vstack([self.gp.Y, y]))
+        gp.set_XY(np.vstack([gp.X, x]),
+                  np.vstack([gp.Y, y]))
 
         # Add data row/col to kernel (a, b)
         # [ K    a ]
@@ -170,35 +170,35 @@ class GaussianProcessOptimization(object):
         # The new Cholesky decomposition is then
         # L_new = [ L    0 ]
         #         [ c.T  d ]
-        a = gp.kern.K(gp.X, x)
-        b = gp.kern.K(x, x)
-
-        b += 1e-8 + gp.likelihood.gaussian_variance(
-                gp.Y_metadata)
-
-        L = gp.posterior.woodbury_chol
-        c = sp.linalg.solve_triangular(gp.posterior.woodbury_chol, a,
-                                       lower=True)
-
-        d = np.sqrt(b - c.T.dot(c))
-
-        L_new = np.asfortranarray(
-                np.bmat([[L, np.zeros_like(c)],
-                         [c.T, d]]))
-
-        K_new = np.bmat([[gp.posterior._K, a],
-                         [a.T, b]])
-
-        gp.X = np.vstack((gp.X, x))
-        gp.Y = np.vstack((gp.Y, y))
-
-        if gp.mean_function is None:
-            alpha, _ = dpotrs(L_new, gp.Y, lower=1)
-        else:
-            alpha, _ = dpotrs(L_new, gp.Y - gp.mean_function.f(gp.X), lower=1)
-        gp.posterior = Posterior(woodbury_chol=L_new,
-                                 woodbury_vector=alpha,
-                                 K=K_new)
+        # a = gp.kern.K(gp.X, x)
+        # b = gp.kern.K(x, x)
+        #
+        # b += 1e-8 + gp.likelihood.gaussian_variance(
+        #         gp.Y_metadata)
+        #
+        # L = gp.posterior.woodbury_chol
+        # c = sp.linalg.solve_triangular(gp.posterior.woodbury_chol, a,
+        #                                lower=True)
+        #
+        # d = np.sqrt(b - c.T.dot(c))
+        #
+        # L_new = np.asfortranarray(
+        #         np.bmat([[L, np.zeros_like(c)],
+        #                  [c.T, d]]))
+        #
+        # K_new = np.bmat([[gp.posterior._K, a],
+        #                  [a.T, b]])
+        #
+        # gp.X = np.vstack((gp.X, x))
+        # gp.Y = np.vstack((gp.Y, y))
+        #
+        # if gp.mean_function is None:
+        #     alpha, _ = dpotrs(L_new, gp.Y, lower=1)
+        # else:
+        #     alpha, _ = dpotrs(L_new, gp.Y - gp.mean_function.f(gp.X), lower=1)
+        # gp.posterior = Posterior(woodbury_chol=L_new,
+        #                          woodbury_vector=alpha,
+        #                          K=K_new)
 
     def change_context(self, context):
         """Change the context of the input points.
@@ -220,15 +220,15 @@ class GaussianProcessOptimization(object):
         if gp is None:
             gp = self.gp
 
-        # self.gp.set_XY(self.gp.X[:-1, :], self.gp.Y[:-1, :])
-        gp.X = gp.X[:-1, :]
-        gp.Y = gp.Y[:-1, :]
-        gp.posterior = Posterior(
-                woodbury_chol=np.asfortranarray(
-                        gp.posterior.woodbury_chol[:-1, :-1]),
-                woodbury_vector=np.asfortranarray(
-                        gp.posterior.woodbury_vector[:-1]),
-                K=gp.posterior._K[:-1, :-1])
+        gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
+        # gp.X = gp.X[:-1, :]
+        # gp.Y = gp.Y[:-1, :]
+        # gp.posterior = Posterior(
+        #         woodbury_chol=np.asfortranarray(
+        #                 gp.posterior.woodbury_chol[:-1, :-1]),
+        #         woodbury_vector=np.asfortranarray(
+        #                 gp.posterior.woodbury_vector[:-1]),
+        #         K=gp.posterior._K[:-1, :-1])
 
 
 class SafeOpt(GaussianProcessOptimization):
