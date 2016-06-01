@@ -1,6 +1,6 @@
 """
-Utilities to sample GP functions, compute hyperparameters and to create
-linear combinations of differently discretized data.
+Utilities to sample GP functions and to create linear combinations of
+differently discretized data.
 
 Author: Felix Berkenkamp (befelix at inf dot ethz dot ch)
 """
@@ -8,15 +8,14 @@ from __future__ import print_function, absolute_import, division
 
 from collections import Sequence            # isinstance(...,Sequence)
 import numpy as np
-import GPy
 import scipy as sp
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 from matplotlib import cm                   # 3D plot colors
 
 
-__all__ = ['linearly_spaced_combinations', 'get_hyperparameters',
-           'sample_gp_function', 'plot_2d_gp', 'plot_3d_gp', 'plot_contour_gp']
+__all__ = ['linearly_spaced_combinations', 'sample_gp_function', 'plot_2d_gp',
+           'plot_3d_gp', 'plot_contour_gp']
 
 
 def linearly_spaced_combinations(bounds, num_samples):
@@ -49,53 +48,6 @@ def linearly_spaced_combinations(bounds, num_samples):
 
     # Convert to 2-D array
     return np.array([x.ravel() for x in np.meshgrid(*inputs)]).T
-
-
-def get_hyperparameters(function, bounds, num_samples, kernel,
-                        likelihood=GPy.likelihoods.gaussian.Gaussian()):
-    """
-    Optimize for hyperparameters by sampling inputs from a uniform grid.
-
-    Parameters
-    ----------
-    function: method
-        Returns the function values, needs to be vectorized to accept 2-D
-        arrays as inputs for each variable
-    bounds: array_like of tuples
-        Each tuple consists of the upper and lower bounds of the variable
-    N: integer
-        Number of sample points per dimension, total = N ** len(bounds).
-        Alternatively a list of sample points per dimension.
-    kernel: instance of GPy.kern.*
-    likelihood: instance of GPy.likelihoods.*
-        Defaults to GPy.likelihoods.gaussian.Gaussian()
-
-    Returns
-    -------
-    kernel: instance of GPy.kern.*
-        Kernel with the optimized hyperparameters
-    likelihood: instance of GPy.likelihoods.*
-        Likelihood with the optimized hyperparameters
-
-    Notes
-    -----
-    Constrained optimization of the hyperparameters can be handled by
-    passing a kernel or likelihood with the corresponding constraints.
-    For example:
-    ``likelihood.constrain_fixed(warning=False)`` to fix the observation noise.
-    """
-    inputs = linearly_spaced_combinations(bounds, num_samples)
-    output = function(inputs)
-
-    inference_method = GPy.inference.latent_function_inference.\
-        exact_gaussian_inference.ExactGaussianInference()
-
-    gp = GPy.core.GP(X=inputs, Y=output[:, None],
-                     kernel=kernel,
-                     inference_method=inference_method,
-                     likelihood=likelihood)
-    gp.optimize()
-    return gp.kern, gp.likelihood
 
 
 def sample_gp_function(kernel, bounds, noise_var, num_samples,
