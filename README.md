@@ -30,9 +30,8 @@ The algorithm is implemented in the ```gp_opt.py``` file. Next to some helper
 functions, the class ```SafeOpt``` implements the core algorithm. It can be
 initialized as
 
-```SafeOpt(function, gp, parameter_set, fmin, lipschitz=None, beta=3.0, num_contexts=0, threshold=0, scaling=None)```
+```SafeOpt(gp, parameter_set, fmin, lipschitz=None, beta=3.0, num_contexts=0, threshold=0, scaling=None)```
 
-* ```function``` is the function that we are trying to optimize.
 * ```gp``` is a Gaussian process from the ```GPy``` toolbox in <url>https://github.com/SheffieldML/GPy</url>. This Gaussian process should already include the points of the initial, safe set. For multiple constraints, this is a list of independent GPs instead.
 * The ```parameter_set``` is a 2d-array of sampling locations for the GP, which is used to compute new evaluation points. It can, for example, be create with the ```linearly_spaced_combinations``` function in the safeopt library.
 * Lastly, fmin defines the safe lower bounds on the function values.
@@ -44,7 +43,7 @@ The class several optional arguments:
 * Potential expanders that have confidence intervals smaller than the ```threshold``` value are not considered by the algorithm. This is useful to avoid unecessary exploration (Typical values are the noise standard deviation).
 * ```scaling``` is used when multiple constraints are specified, in order to account for different magnitudes of functions.
 
-Once the class is initialized, its ```optimize``` method can be used to sample a new point. The ```plot``` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
+Once the class is initialized, its ```optimize``` method can be used to determine the next parameters at which to evaluate the objective function. The resulting data point can be added with the ```add_new_data_point``` method. The ```plot``` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
 
 For a more detailed documentation see the class/method docstrings within the source code.
 
