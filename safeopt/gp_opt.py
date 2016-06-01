@@ -56,37 +56,37 @@ class GaussianProcessOptimization(object):
             # Assume that beta is a constant
             self.beta = lambda t: beta
 
-        self._inputs = None
+        self._parameter_set = None
         self.bounds = None
         self.num_samples = 0
         self.num_contexts = num_contexts
-        self.parameter_set = parameter_set.copy()
 
         if self.num_contexts > 0:
-            context_shape = (self.parameter_set.shape[0], self.num_contexts)
-            self.inputs = np.hstack((self.parameter_set,
+            context_shape = (parameter_set.shape[0], self.num_contexts)
+            self.inputs = np.hstack((parameter_set,
                                      np.zeros(context_shape,
-                                              dtype=self.parameter_set.dtype)))
+                                              dtype=parameter_set.dtype)))
+            self.parameter_set = self.inputs[:, :-self.num_contexts]
         else:
-            self.inputs = self.parameter_set
+            self.inputs = self.parameter_set = parameter_set
 
         # Time step
         self.t = self.gp.X.shape[0]
 
     @property
-    def inputs(self):
+    def parameter_set(self):
         """Discrete parameter samples for Bayesian optimization."""
-        return self._inputs
+        return self._parameter_set
 
-    @inputs.setter
-    def inputs(self, parameter_set):
-        self._inputs = parameter_set
+    @parameter_set.setter
+    def parameter_set(self, parameter_set):
+        self._parameter_set = parameter_set
 
         # Plotting bounds (min, max value
-        self.bounds = list(zip(np.min(self._inputs, axis=0),
-                               np.max(self._inputs, axis=0)))
-        self.num_samples = [len(np.unique(self._inputs[:, i]))
-                            for i in range(self._inputs.shape[1])]
+        self.bounds = list(zip(np.min(self._parameter_set, axis=0),
+                               np.max(self._parameter_set, axis=0)))
+        self.num_samples = [len(np.unique(self._parameter_set[:, i]))
+                            for i in range(self._parameter_set.shape[1])]
 
     @property
     def context_fixed_inputs(self):
@@ -531,9 +531,14 @@ class SafeOpt(GaussianProcessOptimization):
 
         return self.get_new_query_point(ucb=ucb)
 
-    def get_maximum(self):
+    def get_maximum(self, context=None):
         """
         Return the current estimate for the maximum.
+
+        Parameters
+        ----------
+        context: ndarray
+            A vector containing the current context
 
         Returns
         -------
@@ -548,6 +553,8 @@ class SafeOpt(GaussianProcessOptimization):
         Run update_confidence_intervals first if you recently added a new data
         point.
         """
+        self.update_confidence_intervals(context=context)
+
         # Compute the safe set (that's cheap anyways)
         self.compute_safe_set()
 
