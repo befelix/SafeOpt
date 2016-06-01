@@ -33,8 +33,6 @@ class GaussianProcessOptimization(object):
 
     Parameters:
     -----------
-    function: object
-        A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process
     parameter_set: 2d-array
         List of parameters
@@ -42,11 +40,14 @@ class GaussianProcessOptimization(object):
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
     """
-    def __init__(self, function, gp, parameter_set, beta, num_contexts):
+    def __init__(self, gp, parameter_set, beta, num_contexts):
         super(GaussianProcessOptimization, self).__init__()
 
-        self.gp = gp
-        self.function = function
+        if isinstance(gp, list):
+            self.gps = gp
+        else:
+            self.gps = [gp]
+        self.gp = self.gps[0]
 
         if hasattr(beta, '__call__'):
             # Beta is a function of t
@@ -59,16 +60,18 @@ class GaussianProcessOptimization(object):
         self.bounds = None
         self.num_samples = 0
         self.num_contexts = num_contexts
-        self.inputs = parameter_set.copy()
+        self.parameter_set = parameter_set.copy()
 
         if self.num_contexts > 0:
-            context_shape = (self.inputs.shape[0], self.num_contexts)
-            self.inputs = np.hstack((self.inputs,
-                                     np.empty(context_shape,
-                                              dtype=self.inputs.dtype)))
+            context_shape = (self.parameter_set.shape[0], self.num_contexts)
+            self.inputs = np.hstack((self.parameter_set,
+                                     np.zeros(context_shape,
+                                              dtype=self.parameter_set.dtype)))
+        else:
+            self.inputs = self.parameter_set
 
         # Time step
-        self.t = 0
+        self.t = self.gp.X.shape[0]
 
     @property
     def inputs(self):
@@ -93,6 +96,26 @@ class GaussianProcessOptimization(object):
         if nc > 0:
             contexts = self.inputs[0, -self.num_contexts:]
             return list(zip(range(n, n - nc, -1), contexts))
+
+    @property
+    def context(self):
+        """Return the current context variables."""
+        if self.num_contexts:
+            return self.inputs[0, -self.num_contexts:]
+
+    @context.setter
+    def context(self, context):
+        """Set the current context and update confidence intervals.
+
+        Parameters
+        ----------
+        context: ndarray
+            New context that should be applied to the input parameters
+        """
+        if self.num_contexts:
+            if context is None:
+                raise ValueError('Need to provide value for context.')
+            self.inputs[:, -self.num_contexts:] = context
 
     def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False,
              **kwargs):
@@ -142,73 +165,41 @@ class GaussianProcessOptimization(object):
                                 figure=figure,
                                 axis=axis)
 
-    def add_new_data_point(self, x, y, gp=None):
+    def add_new_data_point(self, x, y, context=None, gp=None):
         """
-        Add a new function observation to the GP.
+        Add a new function observation to the GPs.
 
         Parameters
         ----------
         x: 2d-array
         y: 2d-array
+        context: array_like
+            The context(s) used for the data points
         gp: instance of GPy.model.GPRegression
-            The gp to which the data point should be added
+            If specified, determines the GP to which we add the data point
         """
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
+
+        if self.num_contexts:
+            context = np.asarray(context)
+            x2 = np.empty((x.shape[0], x.shape[1] + self.num_contexts), dtype=np.float)
+            x2[:, :x.shape[1]] = x
+            x2[:, x.shape[1]:] = context
+            x = x2
+
         if gp is None:
-            gp = self.gp
+            for i, gp in enumerate(self.gps):
+                is_not_nan = ~np.isnan(y[:, i])
+                if np.any(is_not_nan):
+                    # Add data to GP
+                    gp.set_XY(np.vstack([gp.X, x[is_not_nan, :]]),
+                              np.vstack([gp.Y, y[is_not_nan, i]]))
+        else:
+            gp.set_XY(np.vstack([gp.X, x]),
+                      np.vstack([gp.Y, y]))
 
-        # Add data to GP
-        gp.set_XY(np.vstack([gp.X, x]),
-                  np.vstack([gp.Y, y]))
-
-        # Add data row/col to kernel (a, b)
-        # [ K    a ]
-        # [ a.T  b ]
-        #
-        # Now K = L.dot(L.T)
-        # The new Cholesky decomposition is then
-        # L_new = [ L    0 ]
-        #         [ c.T  d ]
-        # a = gp.kern.K(gp.X, x)
-        # b = gp.kern.K(x, x)
-        #
-        # b += 1e-8 + gp.likelihood.gaussian_variance(
-        #         gp.Y_metadata)
-        #
-        # L = gp.posterior.woodbury_chol
-        # c = sp.linalg.solve_triangular(gp.posterior.woodbury_chol, a,
-        #                                lower=True)
-        #
-        # d = np.sqrt(b - c.T.dot(c))
-        #
-        # L_new = np.asfortranarray(
-        #         np.bmat([[L, np.zeros_like(c)],
-        #                  [c.T, d]]))
-        #
-        # K_new = np.bmat([[gp.posterior._K, a],
-        #                  [a.T, b]])
-        #
-        # gp.X = np.vstack((gp.X, x))
-        # gp.Y = np.vstack((gp.Y, y))
-        #
-        # if gp.mean_function is None:
-        #     alpha, _ = dpotrs(L_new, gp.Y, lower=1)
-        # else:
-        #     alpha, _ = dpotrs(L_new, gp.Y - gp.mean_function.f(gp.X), lower=1)
-        # gp.posterior = Posterior(woodbury_chol=L_new,
-        #                          woodbury_vector=alpha,
-        #                          K=K_new)
-
-    def change_context(self, context):
-        """Change the context of the input points.
-
-        Parameters
-        ----------
-        context: ndarray
-            New context that should be applied to the input parameters
-        """
-        self.inputs[:, -self.num_contexts:] = context
+        self.t += y.shape[1]
 
     def remove_last_data_point(self, gp=None):
         """Remove the data point that was last added to the GP.
@@ -218,17 +209,10 @@ class GaussianProcessOptimization(object):
                 The gp that the last data point should be removed from
         """
         if gp is None:
-            gp = self.gp
-
-        gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
-        # gp.X = gp.X[:-1, :]
-        # gp.Y = gp.Y[:-1, :]
-        # gp.posterior = Posterior(
-        #         woodbury_chol=np.asfortranarray(
-        #                 gp.posterior.woodbury_chol[:-1, :-1]),
-        #         woodbury_vector=np.asfortranarray(
-        #                 gp.posterior.woodbury_vector[:-1]),
-        #         K=gp.posterior._K[:-1, :-1])
+            for gp in self.gps:
+                gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
+        else:
+            gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
 
 
 class SafeOpt(GaussianProcessOptimization):
@@ -237,8 +221,6 @@ class SafeOpt(GaussianProcessOptimization):
 
     Parameters
     ----------
-    function: object
-        A function that returns the current value that we want to optimize.
     gp: GPy Gaussian process
         A Gaussian process which is initialized with safe, initial data points.
         If a list of GPs then the first one is the value, while all the
@@ -263,18 +245,10 @@ class SafeOpt(GaussianProcessOptimization):
         different input sizes. Defaults to no scaling
 
     """
-    def __init__(self, function, gp, parameter_set, fmin,
-                 lipschitz=None, beta=3.0, num_contexts=0, threshold=0,
-                 scaling=None):
+    def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
+                 num_contexts=0, threshold=0, scaling=None):
 
-        if isinstance(gp, list):
-            self.gps = gp
-            gp = self.gps[0]
-        else:
-            self.gps = [gp]
-
-        super(SafeOpt, self).__init__(function, gp, parameter_set, beta,
-                                      num_contexts)
+        super(SafeOpt, self).__init__(gp, parameter_set, beta, num_contexts)
 
         self.fmin = fmin
         self.liptschitz = lipschitz
@@ -298,7 +272,7 @@ class SafeOpt(GaussianProcessOptimization):
                     np.asarray(self.liptschitz).squeeze())
 
         # Value intervals
-        self.Q = np.empty((self.inputs.shape[0],2 * len(self.gps)),
+        self.Q = np.empty((self.inputs.shape[0], 2 * len(self.gps)),
                           dtype=np.float)
 
         # Safe set
@@ -313,9 +287,6 @@ class SafeOpt(GaussianProcessOptimization):
         # Set of expanders and maximizers
         self.G = self.S.copy()
         self.M = self.S.copy()
-
-        # Update the sets
-        self.update_confidence_intervals()
 
     @property
     def use_lipschitz(self):
@@ -346,13 +317,12 @@ class SafeOpt(GaussianProcessOptimization):
         beta = self.beta(self.t)
 
         # Update context to current setting
-        if context is not None:
-            self.inputs[:, -self.num_contexts:] = context
+        self.context = context
 
         # Iterate over all functions
         for i in range(len(self.gps)):
             # Evaluate acquisition function
-            mean, var = self.gps[i]._raw_predict(self.inputs)
+            mean, var = self.gps[i].predict_noiseless(self.inputs)
 
             mean = mean.squeeze()
             std_dev = np.sqrt(var.squeeze())
@@ -424,31 +394,6 @@ class SafeOpt(GaussianProcessOptimization):
                 # no need to evaluate any points as expanders in G, exit
                 return
 
-        # def sort_generator(array):
-        #     """Return the indeces of the biggest elements in order.
-        #
-        #     Avoids sorting everything, sorts the relevant parts at a time.
-        #
-        #     Parameters
-        #     ----------
-        #     array: 1d-array
-        #         The array which we want to sort and iterate over
-        #
-        #     Returns
-        #     -------
-        #     iterable:
-        #         Indeces of the largest elements in order
-        #     """
-        #     sort_id = np.argpartition(array, -1)
-        #     yield sort_id[-1]
-        #     for i in range(1, len(array)):
-        #         sort_id[:-i] =\
-        #             sort_id[:-i][np.argpartition(array[sort_id[:-i]], -1)]
-        #         yield sort_id[-i - 1]
-
-        # Rather than using a generator we could just straight out sort.
-        # This is faster if we have to check more than log(n) points as
-        # expanders before finding one
         def sort_generator(array):
             """Return the sorted array, largest element first."""
             return array.argsort()[::-1]
@@ -492,13 +437,14 @@ class SafeOpt(GaussianProcessOptimization):
                         continue
 
                     # Add safe point with its max possible value to the gp
-                    self.add_new_data_point(self.inputs[s, :][index, :],
+                    self.add_new_data_point(self.parameter_set[s, :][index, :],
                                             u[s, i][index],
+                                            context=self.context,
                                             gp=self.gps[i])
 
                     # Prediction of previously unsafe points based on that
                     mean2, var2 =\
-                        self.gps[i]._raw_predict(self.inputs[~self.S])
+                        self.gps[i].predict_noiseless(self.inputs[~self.S])
 
                     # Remove the fake data point from the GP again
                     self.remove_last_data_point(gp=self.gps[i])
@@ -524,24 +470,43 @@ class SafeOpt(GaussianProcessOptimization):
         # Update safe set (if full_sets is False this is at most one point
         self.G[s] = G_safe
 
-    def compute_new_query_point(self):
+    def get_new_query_point(self, ucb=False):
         """
         Computes a new point at which to evaluate the function, based on the
         sets M and G.
+
+        Parameters
+        ----------
+        ucb: bool
+            If True the safe-ucb criteria is used instead.
+
+        Returns
+        -------
+        x: np.array
+            The next parameters that should be evaluated.
         """
         if not np.any(self.S):
             raise EnvironmentError('There are no safe points to evaluate.')
 
-        # Get lower and upper bounds
-        l = self.Q[:, ::2]
-        u = self.Q[:, 1::2]
+        if ucb:
+            max_id = np.argmax(self.Q[self.S, 1])
+            x = self.inputs[self.S, :][max_id, :]
+        else:
+            # Get lower and upper bounds
+            l = self.Q[:, ::2]
+            u = self.Q[:, 1::2]
 
-        MG = np.logical_or(self.M, self.G)
-        value = np.max((u[MG] - l[MG]) / self.scaling, axis=1)
-        return self.inputs[MG, :][np.argmax(value), :]
+            MG = np.logical_or(self.M, self.G)
+            value = np.max((u[MG] - l[MG]) / self.scaling, axis=1)
+            x = self.inputs[MG, :][np.argmax(value), :]
+
+        if self.num_contexts:
+            return x[:-self.num_contexts]
+        else:
+            return x
 
     def optimize(self, context=None, ucb=False):
-        """Run one step of bayesian optimization.
+        """Run Safe Bayesian optimization and get the next parameters.
 
         Parameters
         ----------
@@ -549,48 +514,27 @@ class SafeOpt(GaussianProcessOptimization):
             A vector containing the current context
         ucb: bool
             If True the safe-ucb criteria is used instead.
+
+        Returns
+        -------
+        x: np.array
+            The next parameters that should be evaluated.
         """
         # Update confidence intervals based on current estimate
-        if (context is not None and not
-                np.all(self.inputs[0, -self.num_contexts:] == context)):
-            self.update_confidence_intervals(context=context)
+        self.update_confidence_intervals(context=context)
+
         # Update the sets
         if ucb:
             self.compute_safe_set()
-            max_id = np.argmax(self.Q[self.S, 1])
-            x = self.inputs[self.S, :][max_id, :]
         else:
             self.compute_sets()
-            # Get new input value
-            x = self.compute_new_query_point()
 
-        # Sample noisy output
-        if context is None:
-            value = self.function(x)
-        else:
-            value = self.function(x[:-self.num_contexts],
-                                  x[-self.num_contexts:])
+        return self.get_new_query_point(ucb=ucb)
 
-        value = np.asarray(value)
-        value = np.atleast_1d(value.squeeze())
-
-        # Add data point to the GP
-        for i in range(len(self.gps)):
-            if value[i] is not None:
-                self.add_new_data_point(x, value[i], gp=self.gps[i])
-        self.t += 1
-
-        self.update_confidence_intervals(context=context)
-
-    def get_maximum(self, context=None):
+    def get_maximum(self):
         """
         Return the current estimate for the maximum.
 
-        Parameters
-        ----------
-        context: np.array
-            A specific context that should be used. If None the current
-            confidence intervals are used without modification.
         Returns
         -------
         x - ndarray
@@ -598,11 +542,14 @@ class SafeOpt(GaussianProcessOptimization):
         y - 0darray
             Maximum value
 
+        Notes
+        -----
+        Uses the current context and confidence intervals!
+        Run update_confidence_intervals first if you recently added a new data
+        point.
         """
-        if (context is not None and not
-                np.all(context == self.inputs[0, -self.num_contexts:])):
-            self.update_confidence_intervals(context=context)
-            self.compute_safe_set()
+        # Compute the safe set (that's cheap anyways)
+        self.compute_safe_set()
 
         # Return nothing if there are no safe points
         if not np.any(self.S):
