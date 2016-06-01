@@ -132,7 +132,10 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
         """Evaluate the GP sample function."""
         x = np.atleast_2d(x)
         y = griddata(inputs, output, x, method='linear')
-        y = np.atleast_2d(y)
+
+        # Work around weird dimension squishing in griddata
+        y = np.atleast_2d(y.squeeze()).T
+
         if noise:
             y += np.sqrt(noise_var) * np.random.randn(x.shape[0], 1)
         return y
