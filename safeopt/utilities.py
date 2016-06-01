@@ -9,7 +9,7 @@ from __future__ import print_function, absolute_import, division
 from collections import Sequence            # isinstance(...,Sequence)
 import numpy as np
 import GPy
-from scipy.interpolate import griddata      # For sampling GP functions
+import scipy as sp
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D     # Create 3D axes
 from matplotlib import cm                   # 3D plot colors
@@ -98,7 +98,8 @@ def get_hyperparameters(function, bounds, num_samples, kernel,
     return gp.kern, gp.likelihood
 
 
-def sample_gp_function(kernel, bounds, noise_var, num_samples):
+def sample_gp_function(kernel, bounds, noise_var, num_samples,
+                       interpolation='kernel', mean_function=None):
     """
     Sample a function from a gp with corresponding kernel within its bounds.
 
@@ -114,6 +115,11 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
         dimensions and test all possible input combinations. If a list then
         the list entries correspond to the number of linearly spaced samples of
         the corresponding input
+    interpolation: string
+        If 'linear' interpolate linearly between samples, if 'kernel' use the
+        corresponding mean RKHS-function of the GP.
+    mean_function: callable
+        Mean of the sample function
 
     Returns
     -------
@@ -128,19 +134,57 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples):
     output = np.random.multivariate_normal(np.zeros(inputs.shape[0]),
                                            cov)
 
-    def evaluate_gp_function(x, noise=True):
-        """Evaluate the GP sample function."""
-        x = np.atleast_2d(x)
-        y = griddata(inputs, output, x, method='linear')
+    if interpolation == 'linear':
 
-        # Work around weird dimension squishing in griddata
-        y = np.atleast_2d(y.squeeze()).T
+        def evaluate_gp_function_linear(x, noise=True):
+            """
+            Evaluate the GP sample function with linear interpolation.
 
-        if noise:
-            y += np.sqrt(noise_var) * np.random.randn(x.shape[0], 1)
-        return y
+            Parameters
+            ----------
+            x: np.array
+                2D array with inputs
+            noise: bool
+                Whether to include prediction noise
+            """
+            x = np.atleast_2d(x)
+            y = sp.interpolate.griddata(inputs, output, x, method='linear')
 
-    return evaluate_gp_function
+            # Work around weird dimension squishing in griddata
+            y = np.atleast_2d(y.squeeze()).T
+
+            if mean_function is not None:
+                y += mean_function(x)
+            if noise:
+                y += np.sqrt(noise_var) * np.random.randn(x.shape[0], 1)
+            return y
+        return evaluate_gp_function_linear
+
+    elif interpolation == 'kernel':
+        cho_factor = sp.linalg.cho_factor(cov)
+        alpha = sp.linalg.cho_solve(cho_factor, output)
+
+        def evaluate_gp_function_kernel(x, noise=True):
+            """
+            Evaluate the GP sample function with kernel interpolation.
+
+            Parameters
+            ----------
+            x: np.array
+                2D array with inputs
+            noise: bool
+                Whether to include prediction noise
+            """
+            x = np.atleast_2d(x)
+            y = kernel.K(x, inputs).dot(alpha)
+            y = y[:, None]
+            if mean_function is not None:
+                y += mean_function(x)
+            if noise:
+                y += np.sqrt(noise_var) * np.random.randn(x.shape[0], 1)
+            return y
+
+        return evaluate_gp_function_kernel
 
 
 def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
