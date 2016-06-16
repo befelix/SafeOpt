@@ -601,7 +601,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
         Otherwise, we assume the same bounds for all dimensions
     swarm_size: int
         The number of particles in each of the optimization swarms
-    
+    verbose: boolean
+        If set to True, the algorithm will print some information about the optimization process
 
     """
     def __init__(self, gp, fmin, beta=3.0, num_contexts=0, threshold=0,
