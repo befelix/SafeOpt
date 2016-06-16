@@ -16,7 +16,9 @@ from GPy.util.linalg import dpotrs          # For rank-1 updates
 from GPy.inference.latent_function_inference.posterior import Posterior
 from collections import Sequence            # isinstance(...,Sequence)
 from scipy.spatial.distance import cdist    # Efficient distance computation
-
+from random import shuffle
+from scipy.special import expit
+from scipy.stats import norm
 
 __all__ = ['SafeOpt', 'SafeOptSwarm', 'GaussianProcessOptimization']
 
