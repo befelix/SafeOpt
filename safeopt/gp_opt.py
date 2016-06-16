@@ -689,11 +689,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
             global_safe = np.logical_and(safe,global_safe)
 
             penalties = np.atleast_1d(np.clip(slack,-100000,0))
-            penalties[slack<-1] = -penalties[slack<-1]**2
-            penalties[np.logical_and(unsafe,slack>-0.001)] *= 2
-            penalties[np.logical_and(unsafe,np.logical_and(slack<=-0.001,slack>-0.1))] *= 5
-            penalties[np.logical_and(unsafe,np.logical_and(slack<=-0.1,slack>-1))] *= 10
-            penalties[np.logical_and(unsafe,slack<-1)] *= 300
+            penalties[slack<-1*self.var_max] = -penalties[slack<-1*self.var_max]**2
+            penalties[np.logical_and(unsafe,slack>-0.001*self.var_max)] *= 2
+            penalties[np.logical_and(unsafe,np.logical_and(slack<=-0.001*self.var_max,slack>-0.1*self.var_max))] *= 5
+            penalties[np.logical_and(unsafe,np.logical_and(slack<=-0.1*self.var_max,slack>-1*self.var_max))] *= 10
+            penalties[np.logical_and(unsafe,slack<-1*self.var_max)] *= 300
 
             values = values + penalties
 
