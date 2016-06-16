@@ -48,7 +48,7 @@ class GaussianProcessOptimization(object):
         You should probably leave this to "auto" unless your kernel is non stationnary
     """
 
-    def __init__(self, gp, parameter_set, beta, num_contexts, scaling='auto'):
+    def __init__(self, gp, beta, num_contexts, scaling='auto'):
         super(GaussianProcessOptimization, self).__init__()
 
         if isinstance(gp, list):
@@ -78,15 +78,6 @@ class GaussianProcessOptimization(object):
         self.bounds = None
         self.num_samples = 0
         self.num_contexts = num_contexts
-
-        if self.num_contexts > 0:
-            context_shape = (parameter_set.shape[0], self.num_contexts)
-            self.inputs = np.hstack((parameter_set,
-                                     np.zeros(context_shape,
-                                              dtype=parameter_set.dtype)))
-            self.parameter_set = self.inputs[:, :-self.num_contexts]
-        else:
-            self.inputs = self.parameter_set = parameter_set
 
         # Time step
         self.t = self.gp.X.shape[0]
@@ -226,7 +217,16 @@ class SafeOpt(GaussianProcessOptimization):
                  num_contexts=0, threshold=0, scaling='auto'):
 
         super(SafeOpt, self).__init__(
-            gp, parameter_set, beta, num_contexts, scaling)
+            gp, beta, num_contexts, scaling)
+
+        if self.num_contexts > 0:
+            context_shape = (parameter_set.shape[0], self.num_contexts)
+            self.inputs = np.hstack((parameter_set,
+                                     np.zeros(context_shape,
+                                              dtype=parameter_set.dtype)))
+            self.parameter_set = self.inputs[:, :-self.num_contexts]
+        else:
+            self.inputs = self.parameter_set = parameter_set
 
         self.fmin = fmin
         self.liptschitz = lipschitz
@@ -625,7 +625,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     def __init__(self, gp, fmin, beta=3.0, num_contexts=0, threshold=0,
                  scaling='auto', bounds=(-5, 5), swarm_size=20, verbose=False):
-        super(SafeOptSwarmSoft, self).__init__(function, gp, safe_set, beta)
+        super(SafeOptSwarm, self).__init__(
+            gp, beta, num_contexts, scaling)
 
         self.fmin = fmin
         if not isinstance(self.fmin, list):
