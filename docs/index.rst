@@ -8,9 +8,8 @@ Welcome to SafeOpt's documentation!
 
 .. include::  introduction.rst
 
-Contents:
-
 .. toctree::
+   :caption: Contents
    :maxdepth: 3
 
 .. automodule:: safeopt
