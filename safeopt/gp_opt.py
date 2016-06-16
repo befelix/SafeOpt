@@ -617,11 +617,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.S = self.gps[0].X
 
         self.swarm_size = swarm_size
-        self.max_iters = 100
+        self.max_iters = 100 #number of swarm iterations
 
         self.verbose = verbose
 
-        self.bounds = bounds
+        if not isinstance(self.fmin, list):
+            self.bounds = [bounds] * self.S.shape[1]
+        else:
+            self.bounds = bounds
 
         self.var_max = gp.kern.K(np.atleast_2d(gp.X[-1,:]),np.atleast_2d(gp.X[-1,:]))
 
@@ -755,7 +758,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             #simulate one step of movement
             tmp_particles = inertia_beginning*velocities + particles
-            tmp_particles = np.clip(tmp_particles,self.bounds[0],self.bounds[1]) #TODO make this general
+            for cur_dim in range(input_dim):
+                tmp_particles[:,cur_dim] = np.clip(tmp_particles[:,cur_dim],self.bounds[cur_dim][0],self.bounds[cur_dim][1])
 
             #compute correlation with current safe set.
             mat = self.gp.kern.K(tmp_particles,self.S) / self.var_max
@@ -792,7 +796,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             #update position
             particles = velocities + particles
-            particles = np.clip(particles,self.bounds[0],self.bounds[1]) #TODO make this general
+            for cur_dim in range(input_dim):
+                particles[:,cur_dim] = np.clip(particles[:,cur_dim],self.bounds[cur_dim][0],self.bounds[cur_dim][1])
 
             #compute fitness
             values, safe = self.compute_particle_fitness(particles,swarm_type,i)
