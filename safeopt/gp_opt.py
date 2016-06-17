@@ -64,12 +64,13 @@ class GaussianProcessOptimization(object):
             # Assume that beta is a constant
             self.beta = lambda t: beta
 
-        if self.scaling == 'auto':
-            dummy_point = np.zeros((1, self.gps[i].input_dim))
+        if scaling == 'auto':
+            dummy_point = np.zeros((1, self.gps[0].input_dim))
             self.scaling = [self.gps[i].kern.K(
-                dummy_point, dummy_point) for i in len(self.gps)]
-        else:
+                dummy_point, dummy_point).squeeze() for i in range(len(self.gps))]
             self.scaling = np.asarray(self.scaling)
+        else:
+            self.scaling = np.asarray(scaling)
             if self.scaling.shape[0] != len(self.gps):
                 raise ValueError(
                     "Error: the number of scaling values should be equal to the number of GPs")
@@ -634,7 +635,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
 
         # Safe set
-        self.S = self.gps[0].X
+        self.S = np.asarray(self.gps[0].X)
 
         self.swarm_size = swarm_size
         self.max_iters = 100  # number of swarm iterations
@@ -653,13 +654,25 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.best_lower_bound = -np.inf
         self.greedy_point = self.S[0, :]
 
+    def _compute_penalty(slack, scaling):
+        penalties = np.atleast_1d(np.clip(slack, -100000, 0))
+        penalties[slack < -1 * scaling] = - penalties[slack < -1 * scaling]**2
+        penalties[np.logical_and(unsafe, slack > -0.001 * scaling)] *= 2
+        penalties[np.logical_and(unsafe, np.logical_and(
+            slack <= -0.001 * scaling, slack > -0.1 * scaling))] *= 5
+        penalties[np.logical_and(unsafe, np.logical_and(
+            slack <= -0.1 * scaling, slack > -1 * scaling))] *= 10
+        penalties[np.logical_and(
+            unsafe, slack < -1 * scaling)] *= 300
+        return penalties
+
     # this function compute the value of each particles, depending on the
     # swarm type
-    def compute_particle_fitness(self, particles, swarm_type):
+    def _compute_particle_fitness(self, particles, swarm_type):
         beta = self.beta(self.t)
 
         # classify the particles points
-        mean, var = self.gps[0]._raw_predict(particles)
+        mean, var = self.gps[0].predict_noiseless(particles)
         mean = mean.squeeze()
         std_dev = np.sqrt(var.squeeze())
 
@@ -668,7 +681,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         upper_bound = np.atleast_1d(mean + beta * std_dev)
 
         # the greedy swarm optimizes for the lower bound
-        if(swarm_type == 'greedy'):
+        if swarm_type == 'greedy':
             return lower_bound, np.full(np.shape(lower_bound)[0], True, dtype=bool)
 
         # value we are optimizing for. Expanders and maximizers seek high
@@ -676,23 +689,23 @@ class SafeOptSwarm(GaussianProcessOptimization):
         values = std_dev / self.scaling[0]
 
         # define the interest function based on the particle type
-        if(swarm_type == 'maximizers'):
+        if swarm_type == 'maximizers':
             interest_function = expit(upper_bound - self.best_lower_bound)
         elif swarm_type == 'expanders' or swarm_type == 'safe_set':
             interest_function = np.ones(np.shape(values))
         else:
             # unknown particle type (shouldn't happen)
-            assert(false)
+            raise AssertionError("Invalid swarm type")
 
         # boolean mask that tell if the particles are safe according to all gps
         global_safe = np.full(np.shape(particles)[0], True, dtype=bool)
-        total_penalty = np.zeros_like(value)
+        total_penalty = np.zeros_like(std_dev)
         for i in range(len(self.gps)):
             if i == 0:
                 cur_lower_bound = lower_bound  # reuse computation
             else:
                 # classify using the current GP
-                cur_mean, cur_var = self.gps[i]._raw_predict(particles)
+                cur_mean, cur_var = self.gps[i].predict_noiseless(particles)
                 cur_mean = cur_mean.squeeze()
                 cur_std_dev = np.sqrt(cur_var.squeeze())
                 cur_lower_bound = cur_mean - beta * cur_std_dev
@@ -710,34 +723,23 @@ class SafeOptSwarm(GaussianProcessOptimization):
             safe = slack >= 0
             global_safe = np.logical_and(safe, global_safe)
 
-            penalties = np.atleast_1d(np.clip(slack, -100000, 0))
-            penalties[slack < -1 * self.scaling[i]] = - \
-                penalties[slack < -1 * self.scaling[i]]**2
-            penalties[np.logical_and(
-                unsafe, slack > -0.001 * self.scaling[i])] *= 2
-            penalties[np.logical_and(unsafe, np.logical_and(
-                slack <= -0.001 * self.scaling[i], slack > -0.1 * self.scaling[i]))] *= 5
-            penalties[np.logical_and(unsafe, np.logical_and(
-                slack <= -0.1 * self.scaling[i], slack > -1 * self.scaling[i]))] *= 10
-            penalties[np.logical_and(
-                unsafe, slack < -1 * self.scaling[i])] *= 300
+            total_penalty = total_penalty + \
+                self._compute_penalty(slack, self.scaling[i])
 
-            total_penalty = total_penalty + penalties
-
-            if(swarm_type == 'expanders'):
+            if swarm_type == 'expanders':
                 # check if the particles are expanders for the current gp
-                interest_function = interest_function * \
-                    norm.pdf(cur_lower_bound, loc=self.fmin[i])
+                interest_function = interest_function * (
+                    norm.pdf(cur_lower_bound, loc=self.fmin[i]))
 
         # add penalty
-        values = values + total_penalty
+        values += total_penalty
 
         # apply the mask for current interest function
-        values = values * interest_function
+        values *= interest_function
 
         # this swarm type is only interested in knowing whether the particles
         # are safe.
-        if(swarm_type == 'safe_set'):
+        if swarm_type == 'safe_set':
             values = lower_bound
 
         return values, global_safe
@@ -755,9 +757,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
         inertia_end = 0.1  # Inertia term at the end of optimization
 
         # Make sure the safe set is still safe
-        lower_bound, safe = self.compute_particle_fitness(self.S, 'safe_set')
+        lower_bound, safe = self._compute_particle_fitness(self.S, 'safe_set')
         unsafe = np.logical_not(safe)
-        if(not np.all(safe)):
+        if not np.all(safe):
             if self.verbose:
                 print("Warning: %d unsafe points removed. Model might be violated" % (
                     np.count(unsafe)))
@@ -768,7 +770,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
                 pass
 
         # init particles
-        if(swarm_type == 'greedy'):
+        if swarm_type == 'greedy':
             # we pick particles u.a.r in the safe set
             particles = self.S[np.random.randint(
                 safe_size, size=self.swarm_size - 3), :]
@@ -819,8 +821,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
                 current_coef_up = mid
 
         # compute initial fitness
-        best_value, safe = self.compute_particle_fitness(
-            particles, swarm_type, 0)
+        best_value, safe = self._compute_particle_fitness(
+            particles, swarm_type)
 
         # initialization of the best estimates
         best_position = particles
@@ -848,21 +850,20 @@ class SafeOptSwarm(GaussianProcessOptimization):
                                                 cur_dim][0], self.bounds[cur_dim][1])
 
             # compute fitness
-            values, safe = self.compute_particle_fitness(
-                particles, swarm_type, i)
+            values, safe = self._compute_particle_fitness(
+                particles, swarm_type)
 
             # find out which particles are improving
             improving = values > best_value
 
             # update whenever safety and improvement are guarenteed
-            best_value[np.logical_and(improving, safe)] = values[
-                np.logical_and(improving, safe)]
-            best_position[np.logical_and(improving, safe)] = particles[
-                np.logical_and(improving, safe)]
+            update_set = np.logical_and(improving, safe)
+            best_value[update_set] = values[update_set]
+            best_position[update_set] = particles[update_set]
             global_best = best_position[np.argmax(best_value), :]
 
         # expand safe set
-        if(swarm_type != 'greedy'):
+        if swarm_type != 'greedy':
             selected_point_id = np.argmax(best_value)
             append = 0
             # compute correlation between new candidates and current safe set
@@ -888,25 +889,25 @@ class SafeOptSwarm(GaussianProcessOptimization):
                     swarm_type, append))
         else:
             # check whether we found a better estimate of the lower bound
-            mean, var = self.gps[0]._raw_predict(
+            mean, var = self.gps[0].predict_noiseless(
                 np.atleast_2d(self.greedy_point))
             mean = mean.squeeze()
             std_dev = np.sqrt(var.squeeze())
             lower_bound1 = mean - beta * std_dev
-            if(lower_bound1 < np.max(best_value)):
+            if lower_bound1 < np.max(best_value):
                 self.greedy_point = global_best
 
-        if(swarm_type == 'greedy'):
+        if swarm_type == 'greedy':
             return global_best, np.max(best_value)
 
         # compute the variance of the point picked
-        _, var = self.gps[0]._raw_predict(np.atleast_2d(global_best))
+        _, var = self.gps[0].predict_noiseless(np.atleast_2d(global_best))
         max_std_dev = np.sqrt(var.squeeze()) / self.scaling[0]
-        for i in range(1, len(gps)):
-            _, var = self.gps[i]._raw_predict(np.atleast_2d(global_best))
-            max_std_dev = np.maximum(
+        for i in range(1, len(self.gps)):
+            _, var = self.gps[i].predict_noiseless(np.atleast_2d(global_best))
+            max_std_dev = np.max(
                 np.sqrt(var.squeeze()) / self.scaling[i], max_std_dev)
-        return global_best, max_std_dev[np.argmax(best_value)]
+        return global_best, max_std_dev
 
     def optimize(self):
         """Run one step of bayesian optimization."""
