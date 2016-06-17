@@ -654,7 +654,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.best_lower_bound = -np.inf
         self.greedy_point = self.S[0, :]
 
-    def _compute_penalty(slack, scaling):
+    def _compute_penalty(self, slack, scaling):
         """
         Return the penalty associated to a constraint violation
 
@@ -669,6 +669,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         penalties - ndarray
             The value of the penalties
         """
+        unsafe = slack < 0
         penalties = np.atleast_1d(np.clip(slack, -100000, 0))
         penalties[slack < -1 * scaling] = - penalties[slack < -1 * scaling]**2
         penalties[np.logical_and(unsafe, slack > -0.001 * scaling)] *= 2
@@ -734,7 +735,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         # boolean mask that tell if the particles are safe according to all gps
         global_safe = np.full(np.shape(particles)[0], True, dtype=bool)
-        total_penalty = np.zeros_like(std_dev)
+        total_penalty = np.zeros(particles.shape[0])
         for i in range(len(self.gps)):
             if i == 0:
                 cur_lower_bound = lower_bound  # reuse computation
@@ -754,12 +755,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             # computing penalties
             penalties = np.zeros(np.shape(values))
-            unsafe = slack < 0
             safe = slack >= 0
+            unsafe = slack < 0
             global_safe = np.logical_and(safe, global_safe)
 
-            total_penalty = total_penalty + \
-                self._compute_penalty(slack, self.scaling[i])
+            total_penalty += self._compute_penalty(slack, self.scaling[i])
 
             if swarm_type == 'expanders':
                 # check if the particles are expanders for the current gp
