@@ -83,36 +83,33 @@ class GaussianProcessOptimization(object):
         # Time step
         self.t = self.gp.X.shape[0]
 
-    def plot(self, axis=None, figure=None, n_samples=None, plot_3d=False,
+    def plot(self, n_samples, axis=None, figure=None, plot_3d=False,
              **kwargs):
         """
         Plot the current state of the optimization.
 
         Parameters
         ----------
+        n_samples: int
+            How many samples to use for plotting
         axis: matplotlib axis
             The axis on which to draw (does not get cleared first)
         figure: matplotlib figure
             Ignored if axis is already defined
-        n_samples: int
-            How many samples to use for plotting (uses input parameters if
-            None)
         plot_3d: boolean
             If set to true shows a 3D plot for 2 dimensional data
         """
-        if n_samples is None:
-            inputs = self.inputs
-            n_samples = self.num_samples
-        else:
-            if self.gp.kern.input_dim == 1 or plot_3d:
-                inputs = linearly_spaced_combinations(self.bounds,
-                                                      n_samples)
-            if not isinstance(n_samples, Sequence):
-                n_samples = [n_samples] * len(self.bounds)
-
         # Fix contexts to their current values
         if self.num_contexts > 0 and 'fixed_inputs' not in kwargs:
             kwargs.update(fixed_inputs=self.context_fixed_inputs)
+
+        true_input_dim = self.gp.kern.input_dim - self.num_contexts
+        if true_input_dim == 1 or plot_3d:
+            inputs = np.zeros((n_samples,self.gp.input_dim))
+            inputs[:,:true_input_dim] = linearly_spaced_combinations(self.bounds,
+                                                                     n_samples)
+        if not isinstance(n_samples, Sequence):
+            n_samples = [n_samples] * len(self.bounds)
 
         if self.gp.input_dim - self.num_contexts == 1:
             # 2D plots with uncertainty
@@ -642,7 +639,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         self.verbose = verbose
 
-        if not isinstance(self.fmin, list):
+        if not isinstance(bounds, list):
             self.bounds = [bounds] * self.S.shape[1]
         else:
             self.bounds = bounds
