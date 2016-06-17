@@ -655,6 +655,20 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.greedy_point = self.S[0, :]
 
     def _compute_penalty(slack, scaling):
+        """
+        Return the penalty associated to a constraint violation
+
+        Parameters
+        ----------
+        slack: ndarray
+            A vector corresponding to how much the constraint was violated
+        scaling: float
+            A float corresponding to the maximal variance of the corresponding GP
+        Returns
+        -------
+        penalties - ndarray
+            The value of the penalties
+        """
         penalties = np.atleast_1d(np.clip(slack, -100000, 0))
         penalties[slack < -1 * scaling] = - penalties[slack < -1 * scaling]**2
         penalties[np.logical_and(unsafe, slack > -0.001 * scaling)] *= 2
@@ -669,6 +683,27 @@ class SafeOptSwarm(GaussianProcessOptimization):
     # this function compute the value of each particles, depending on the
     # swarm type
     def _compute_particle_fitness(self, particles, swarm_type):
+        """
+        Return the value of the particles and the safety information.
+
+        Parameters
+        ----------
+        particles: ndarray
+            A vector containing the coordinates of the particles
+        swarm_type: string
+            A string corresponding to the swarm type. It can be any of the following:
+                - "greedy" : estimate of the best lower bound
+                - "expander" : find expender points
+                - "maximizer" : find maximizer points
+                - "safe_set" : special parameter to check only safety
+        Returns
+        -------
+        values - ndarray
+            The values of the particles
+        global_safe - ndarray
+            A boolean mask indicating safety status of all particles
+            (note that in the case of a greedy swarm, this is not computed and we return a True mask)
+        """
         beta = self.beta(self.t)
 
         # classify the particles points
@@ -910,7 +945,16 @@ class SafeOptSwarm(GaussianProcessOptimization):
         return global_best, max_std_dev
 
     def optimize(self):
-        """Run one step of bayesian optimization."""
+        """Run Safe Bayesian optimization and get the next parameters.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        x: np.array
+            The next parameters that should be evaluated.
+        """
 
         # compute estimate of the lower bound
         self.greedy, self.best_lower_bound = self.compute_new_query_point(
@@ -933,5 +977,19 @@ class SafeOptSwarm(GaussianProcessOptimization):
         return x
 
     def get_maximum(self):
+        """
+        Return the current estimate for the maximum.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        x - ndarray
+            Location of the maximum
+        y - 0darray
+            Maximum value
+
+        """
         maxi = np.argmax(self.gp.Y)
         return self.gp.X[maxi, :], self.gp.Y[maxi]
