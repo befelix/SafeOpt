@@ -678,8 +678,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
             unsafe, slack < -1 * scaling)] *= 300
         return penalties
 
-    # this function compute the value of each particles, depending on the
-    # swarm type
     def _compute_particle_fitness(self, particles, swarm_type):
         """
         Return the value of the particles and the safety information.
@@ -776,7 +774,31 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         return values, global_safe
 
-    def compute_new_query_point(self, swarm_type):
+    def get_new_query_point(self, swarm_type):
+        """
+        Computes a new point at which to evaluate the function, depending
+        on the swarm type.
+
+        This function relies on a Particle Swarm Optimization (PSO) to find the
+        optimum of the objective function (which depends on the swarm type).
+        Parameters
+        ----------
+        swarm_type: string
+            This parameter controls the type of point that should be found.
+              -If set to "expanders", it will try to find a point that increases
+               the safe set
+              -If set to "maximizers", it will try to find a point that maximizes
+               the objective function within the safe set
+              -"Greedy" is a convenience parameter to retrieve an estimate of the best
+               currently known point, given the observations already made.
+
+        Returns
+        -------
+        global_best: np.array
+            The next parameters that should be evaluated.
+        max_std_dev: float
+            The current standard deviation in the point to be evaluated
+        """
 
         beta = self.beta(self.t)
         safe_size = np.shape(self.S)[0]
@@ -837,8 +859,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             # compute correlation with current safe set.
             # TODO maybe make this dependent on all the kernels
-            mat = self.gps[0].kern.K(tmp_particles, self.S) / self.scaling[0]
-            closest = np.max(mat, axis=1)
+            kernel_matrix = self.gps[0].kern.K(tmp_particles, self.S) / self.scaling[0]
+            closest = np.max(kernel_matrix, axis=1)
             # make sure that the velocity is not too big (takes us out of safe
             # set)
             velocity_reasonable = np.min(closest) >= 0.9
@@ -909,9 +931,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
             mask[0:initial_safe] = True
             for j in range(n):
                 # make sure correlation with old points is relatively low
-                ok = np.all(mat[j, mask] <= 0.95)
+                good_correlation = np.all(mat[j, mask] <= 0.95)
                 # Note that we force addition of the highest variance point
-                if j == selected_point_id or ok:
+                if j == selected_point_id or good_correlation:
                     pt = np.atleast_2d(best_position[j, :])
                     self.S = np.append(self.S, pt, axis=0)
                     append += 1
@@ -954,14 +976,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
 
         # compute estimate of the lower bound
-        self.greedy, self.best_lower_bound = self.compute_new_query_point(
+        self.greedy, self.best_lower_bound = self.get_new_query_point(
             'greedy')
 
         # Run both swarm:
         # Maximizers
-        x_maxi, val_maxi = self.compute_new_query_point('maximizers')
+        x_maxi, val_maxi = self.get_new_query_point('maximizers')
         # Expanders
-        x_exp, val_exp = self.compute_new_query_point('expanders')
+        x_exp, val_exp = self.get_new_query_point('expanders')
 
         if self.verbose:
             print("The best maximizer has variance %f" % val_maxi)
@@ -969,7 +991,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
             print("The greedy estimate of lower bound has value %f" %
                   self.best_lower_bound)
 
-        x = x_maxi if val_maxi > val_exp else x_exp
+        if val_maxi > mal_exp:
+            x = x_maxi
+        else:
+            x = x_exp
         self.t += 1
         return x
 
