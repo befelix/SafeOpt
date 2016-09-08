@@ -20,6 +20,9 @@ from random import shuffle
 from scipy.special import expit
 from scipy.stats import norm
 
+import logging
+
+
 __all__ = ['SafeOpt', 'SafeOptSwarm', 'GaussianProcessOptimization']
 
 
@@ -590,6 +593,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
     heuristic.
     Note that it doesn't support the use of a Lipschitz constant
 
+    You can set your logging level to INFO to get more insigt on the optimization process
+
     Parameters
     ----------
     gp: GPy Gaussian process
@@ -616,13 +621,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
         Otherwise, we assume the same bounds for all dimensions
     swarm_size: int
         The number of particles in each of the optimization swarms
-    verbose: boolean
-        If set to True, the algorithm will print some information about the optimization process
 
     """
 
     def __init__(self, gp, fmin, beta=3.0, num_contexts=0, threshold=0,
-                 scaling='auto', bounds=(-5, 5), swarm_size=20, verbose=False):
+                 scaling='auto', bounds=(-5, 5), swarm_size=20):
         super(SafeOptSwarm, self).__init__(
             gp, beta, num_contexts, scaling)
 
@@ -636,8 +639,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         self.swarm_size = swarm_size
         self.max_iters = 100  # number of swarm iterations
-
-        self.verbose = verbose
 
         if not isinstance(bounds, list):
             self.bounds = [bounds] * self.S.shape[1]
@@ -814,9 +815,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
         lower_bound, safe = self._compute_particle_fitness(self.S, 'safe_set')
         unsafe = np.logical_not(safe)
         if not np.all(safe):
-            if self.verbose:
-                print("Warning: %d unsafe points removed. Model might be violated" % (
-                    np.count(unsafe)))
+            logging.warning("Warning: %d unsafe points removed. Model might be violated" % (
+            np.count(unsafe)))
             try:
                 self.S = self.S[safe]
                 safe_size = np.shape(self.S)[0]
@@ -938,9 +938,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
                     self.S = np.append(self.S, pt, axis=0)
                     append += 1
                     mask[initial_safe + j] = True
-            if self.verbose:
-                print("At the end of swarm %s, %d points were appended to safeset" % (
-                    swarm_type, append))
+            logging.info("At the end of swarm %s, %d points were appended to safeset" % (
+                swarm_type, append))
         else:
             # check whether we found a better estimate of the lower bound
             mean, var = self.gps[0].predict_noiseless(
@@ -985,11 +984,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # Expanders
         x_exp, val_exp = self.get_new_query_point('expanders')
 
-        if self.verbose:
-            print("The best maximizer has variance %f" % val_maxi)
-            print("The best expander has variance %f" % val_exp)
-            print("The greedy estimate of lower bound has value %f" %
-                  self.best_lower_bound)
+        logging.info("The best maximizer has variance %f" % val_maxi)
+        logging.info("The best expander has variance %f" % val_exp)
+        logging.info("The greedy estimate of lower bound has value %f" %
+                     self.best_lower_bound)
 
         if val_maxi > mal_exp:
             x = x_maxi
