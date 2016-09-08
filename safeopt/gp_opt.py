@@ -108,9 +108,9 @@ class GaussianProcessOptimization(object):
 
         true_input_dim = self.gp.kern.input_dim - self.num_contexts
         if true_input_dim == 1 or plot_3d:
-            inputs = np.zeros((n_samples,self.gp.input_dim))
-            inputs[:,:true_input_dim] = linearly_spaced_combinations(self.bounds,
-                                                                     n_samples)
+            inputs = np.zeros((n_samples, self.gp.input_dim))
+            inputs[:, :true_input_dim] = linearly_spaced_combinations(self.bounds,
+                                                                      n_samples)
         if not isinstance(n_samples, Sequence):
             n_samples = [n_samples] * len(self.bounds)
 
@@ -816,7 +816,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         unsafe = np.logical_not(safe)
         if not np.all(safe):
             logging.warning("Warning: %d unsafe points removed. Model might be violated" % (
-            np.count(unsafe)))
+                np.count(unsafe)))
             try:
                 self.S = self.S[safe]
                 safe_size = np.shape(self.S)[0]
@@ -859,7 +859,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             # compute correlation with current safe set.
             # TODO maybe make this dependent on all the kernels
-            kernel_matrix = self.gps[0].kern.K(tmp_particles, self.S) / self.scaling[0]
+            kernel_matrix = self.gps[0].kern.K(
+                tmp_particles, self.S) / self.scaling[0]
             closest = np.max(kernel_matrix, axis=1)
             # make sure that the velocity is not too big (takes us out of safe
             # set)
