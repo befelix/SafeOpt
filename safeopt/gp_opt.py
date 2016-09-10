@@ -108,8 +108,8 @@ class GaussianProcessOptimization(object):
 
         true_input_dim = self.gp.kern.input_dim - self.num_contexts
         if true_input_dim == 1 or plot_3d:
-            inputs = np.zeros((n_samples, self.gp.input_dim))
-            inputs[:, :true_input_dim] = linearly_spaced_combinations(self.bounds,
+            inputs = np.zeros((n_samples ** true_input_dim, self.gp.input_dim))
+            inputs[:, :true_input_dim] = linearly_spaced_combinations(self.bounds[:true_input_dim],
                                                                       n_samples)
         if not isinstance(n_samples, Sequence):
             n_samples = [n_samples] * len(self.bounds)
