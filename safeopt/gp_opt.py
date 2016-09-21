@@ -990,7 +990,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         logging.info("The greedy estimate of lower bound has value %f" %
                      self.best_lower_bound)
 
-        if val_maxi > mal_exp:
+        if val_maxi > val_exp:
             x = x_maxi
         else:
             x = x_exp
