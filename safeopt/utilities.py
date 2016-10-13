@@ -39,8 +39,12 @@ def linearly_spaced_combinations(bounds, num_samples):
         inputs.
     """
     num_vars = len(bounds)
+
     if not isinstance(num_samples, Sequence):
         num_samples = [num_samples] * num_vars
+
+    if len(bounds) == 1:
+        return np.linspace(bounds[0][0], bounds[0][1], num_samples[0])[:, None]
 
     # Create linearly spaced test inputs
     inputs = [np.linspace(b[0], b[1], n) for b, n in zip(bounds,
