@@ -93,7 +93,7 @@ class GaussianProcessOptimization(object):
         y = np.empty((len(x), len(self.gps)), dtype=np.float)
 
         for i, gp in enumerate(self.gps):
-            y[:, i] = gp.Y
+            y[:, i] = gp.Y.squeeze()
         return x, y
 
     def plot(self, n_samples, axis=None, figure=None, plot_3d=False,
