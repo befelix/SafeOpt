@@ -86,6 +86,16 @@ class GaussianProcessOptimization(object):
         # Time step
         self.t = self.gp.X.shape[0]
 
+    @property
+    def data(self):
+        """Return the data within the GP models."""
+        x = self.gp.X.copy()
+        y = np.empty((len(X), len(self.gps)), dtype=np.float)
+
+        for i, gp in enumerate(self.gps):
+            y[:, i] = gp.Y
+        return x, y
+
     def plot(self, n_samples, axis=None, figure=None, plot_3d=False,
              **kwargs):
         """
