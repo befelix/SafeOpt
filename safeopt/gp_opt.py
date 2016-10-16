@@ -23,7 +23,7 @@ from scipy.stats import norm
 import logging
 
 
-__all__ = ['SafeOpt', 'SafeOptSwarm', 'GaussianProcessOptimization']
+__all__ = ['SafeOpt', 'SafeOptSwarm']
 
 
 # For python 2 compatibility
