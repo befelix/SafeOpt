@@ -90,7 +90,7 @@ class GaussianProcessOptimization(object):
     def data(self):
         """Return the data within the GP models."""
         x = self.gp.X.copy()
-        y = np.empty((len(X), len(self.gps)), dtype=np.float)
+        y = np.empty((len(x), len(self.gps)), dtype=np.float)
 
         for i, gp in enumerate(self.gps):
             y[:, i] = gp.Y
