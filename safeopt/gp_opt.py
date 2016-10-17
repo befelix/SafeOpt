@@ -728,8 +728,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         # the greedy swarm optimizes for the lower bound
         if swarm_type == 'greedy':
-            return lower_bound, np.full(np.shape(lower_bound)[0], True,
-                                        dtype=bool)
+            return lower_bound, np.ones(lower_bound.shape[0], dtype=np.bool)
 
         # value we are optimizing for. Expanders and maximizers seek high
         # variance points
@@ -745,18 +744,18 @@ class SafeOptSwarm(GaussianProcessOptimization):
             raise AssertionError("Invalid swarm type")
 
         # boolean mask that tell if the particles are safe according to all gps
-        global_safe = np.full(np.shape(particles)[0], True, dtype=bool)
+        global_safe = np.ones(particles.shape[0], dtype=np.bool)
         total_penalty = np.zeros(particles.shape[0])
-        for i in range(len(self.gps)):
+        for i, (gp, scaling) in enumerate(zip(self.gps, self.scaling)):
             if i == 0:
                 cur_lower_bound = lower_bound  # reuse computation
             else:
                 # classify using the current GP
-                cur_mean, cur_var = self.gps[i].predict_noiseless(particles)
+                cur_mean, cur_var = gp.predict_noiseless(particles)
                 cur_mean = cur_mean.squeeze()
                 cur_std_dev = np.sqrt(cur_var.squeeze())
                 cur_lower_bound = cur_mean - beta * cur_std_dev
-                value = np.maximum(value, cur_std_dev / self.scaling[i])
+                value = np.maximum(value, cur_std_dev / scaling)
 
             # if the current GP has no safety constrain, we skip it
             if self.fmin[i] == -np.inf:
@@ -765,17 +764,15 @@ class SafeOptSwarm(GaussianProcessOptimization):
             slack = np.atleast_1d(cur_lower_bound - self.fmin[i])
 
             # computing penalties
-            penalties = np.zeros(np.shape(values))
             safe = slack >= 0
-            unsafe = slack < 0
             global_safe = np.logical_and(safe, global_safe)
 
-            total_penalty += self._compute_penalty(slack, self.scaling[i])
+            total_penalty += self._compute_penalty(slack, scaling)
 
             if swarm_type == 'expanders':
                 # check if the particles are expanders for the current gp
-                interest_function = interest_function * (
-                    norm.pdf(cur_lower_bound, loc=self.fmin[i]))
+                interest_function *= norm.pdf(cur_lower_bound,
+                                              loc=self.fmin[i])
 
         # add penalty
         values += total_penalty
