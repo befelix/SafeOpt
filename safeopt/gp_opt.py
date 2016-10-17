@@ -947,8 +947,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
             n, m = np.shape(mat)
             # this mask keeps track of the points that we have added in the
             # safe set to account for them when adding a new point
-            mask = np.full(m, False, dtype=bool)
-            mask[0:initial_safe] = True
+            mask = np.zeros(m, dtype=np.bool)
+            mask[:initial_safe] = True
             for j in range(n):
                 # make sure correlation with old points is relatively low
                 good_correlation = np.all(mat[j, mask] <= 0.95)
