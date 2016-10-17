@@ -195,8 +195,12 @@ class GaussianProcessOptimization(object):
 
 
 class SafeOpt(GaussianProcessOptimization):
-    """
-    A class to maximize a function using the adapted or original SafeOpt alg.
+    """A class for Safe Bayesian Optimization
+
+    This class implements the `SafeOpt` algorithm. It uses a Gaussian
+    process model in order to determine parameter combinations that are safe
+    with high probability. Based on these, it aims to both expand the set of
+    safe parameters and to find the optimal parameters within the safe set.
 
     Parameters
     ----------
