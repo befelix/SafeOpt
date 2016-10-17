@@ -837,22 +837,20 @@ class SafeOptSwarm(GaussianProcessOptimization):
         if swarm_type == 'greedy':
             # we pick particles u.a.r in the safe set
             random_id = np.random.randint(safe_size, size=self.swarm_size - 3)
-            particles = self.S[random_id, :]
-            # we make sure that we include in the initial particles the
-            # following points (to speed up convergence):
-            # the previous greedy estimate
-            particles = np.append(particles, np.atleast_2d(self.greedy_point),
-                                  axis=0)
-            # the last sampled point
-            particles = np.append(particles, self.gp.X[[-1], :], axis=0)
             best_sampled_point = np.argmax(self.gp.Y)
-            # the best sampled point
-            particles = np.append(particles,self.gp.X[[best_sampled_point], :],
-                                  axis=0)
+
+            # Particles are drawn at random from the safe set, but include the
+            # - Previous greedy estimate
+            # - last point
+            # - best sampled point
+            particles = np.vstack((self.S[random_id, :],
+                                   self.greedy_point,
+                                   self.gp.X[[-1], :],
+                                   self.gp.X[[best_sampled_point]]))
         else:
             # we pick particles u.a.r in the safe set
-            particles = self.S[np.random.randint(
-                safe_size, size=self.swarm_size), :]
+            random_id = np.random.randint(safe_size, size=self.swarm_size)
+            particles = self.S[random_id, :]
 
         # we now find a velocity that gets us away from the current points, but
         # that doesn't get too far (ie we seek points that still highly
