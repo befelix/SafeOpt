@@ -3,3 +3,5 @@ _build
 .ipynb_checkpoints
 *.pyc
 *.swp
+docs/generated
+

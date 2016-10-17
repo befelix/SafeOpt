@@ -14,8 +14,6 @@ Welcome to SafeOpt's documentation!
 
    api
 
-.. automodule:: safeopt
-
 Indices and tables
 ==================
 
