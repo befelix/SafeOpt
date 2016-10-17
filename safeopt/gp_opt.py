@@ -815,8 +815,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
 
         beta = self.beta(self.t)
-        safe_size = np.shape(self.S)[0]
-        input_dim = np.shape(self.S)[1]
+        safe_size, input_dim = self.S.shape
 
         # Parameters of PSO
         c1 = 2  # coefficient of the regret term
@@ -833,7 +832,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
                             .format(np.count_nonzero(unsafe)))
             try:
                 self.S = self.S[safe]
-                safe_size = np.shape(self.S)[0]
+                safe_size = self.S.shape[0]
             except:
                 pass
 
@@ -878,8 +877,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             # compute correlation with current safe set.
             # TODO maybe make this dependent on all the kernels
-            kernel_matrix = self.gps[0].kern.K(
-                tmp_particles, self.S) / self.scaling[0]
+            kernel_matrix = (self.gps[0].kern.K(tmp_particles, self.S) /
+                             self.scaling[0])
             closest = np.max(kernel_matrix, axis=1)
             # make sure that the velocity is not too big (takes us out of safe
             # set)
@@ -890,10 +889,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
             velocity_found = ((velocity_reasonable and velocity_enough) or
                               abs(current_coef_down - current_coef_up) < 0.001)
 
-            if not velocity_enough:
-                current_coef_down = mid
-            else:
+            if velocity_enough:
                 current_coef_up = mid
+            else:
+                current_coef_down = mid
 
         # compute initial fitness
         best_value, safe = self._compute_particle_fitness(
@@ -902,13 +901,12 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # initialization of the best estimates
         best_position = particles
         global_best = best_position[np.argmax(best_value), :]
-        old_best = np.max(best_value)
 
         inertia_coef = (inertia_end - inertia_beginning) / self.max_iters
         for i in range(self.max_iters):
             # update velocities
-            delta_global_best = (global_best - particles)
-            delta_self_best = (best_position - particles)
+            delta_global_best = global_best - particles
+            delta_self_best = best_position - particles
             inertia = i * inertia_coef + inertia_beginning
             r1 = np.random.rand(self.swarm_size, input_dim)
             r2 = np.random.rand(self.swarm_size, input_dim)
@@ -916,14 +914,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
                           delta_self_best + c2 * r2 * delta_global_best)
 
             # clip
-            velocities = np.clip(velocities, -4, 4)
+            np.clip(velocities, -4, 4, out=velocities)
 
             # update position
             particles = velocities + particles
-            for cur_dim in range(input_dim):
-                particles[:, cur_dim] = np.clip(particles[:, cur_dim],
-                                                self.bounds[cur_dim][0],
-                                                self.bounds[cur_dim][1])
+
+            # Clip particles to domain
+            bounds = np.asarray(self.bounds)
+            np.clip(particles, bounds[:, 0], bounds[:, 1], out=particles)
 
             # compute fitness
             values, safe = self._compute_particle_fitness(
