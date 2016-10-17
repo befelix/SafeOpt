@@ -832,7 +832,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
         unsafe = np.logical_not(safe)
         if not np.all(safe):
             logging.warning("Warning: {} unsafe points removed. "
-                            "Model might be violated".format(np.count(unsafe)))
+                            "Model might be violated"
+                            .format(np.count_nonzero(unsafe)))
             try:
                 self.S = self.S[safe]
                 safe_size = np.shape(self.S)[0]
