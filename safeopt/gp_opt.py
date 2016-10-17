@@ -645,6 +645,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
         self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
+        self.threshold = threshold
 
         # Safe set
         self.S = np.asarray(self.gps[0].X)
@@ -657,8 +658,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         else:
             self.bounds = bounds
 
-        self.var_max = gp.kern.K(np.atleast_2d(
-            gp.X[-1, :]), np.atleast_2d(gp.X[-1, :]))
+        self.var_max = gp.kern.Kdiag(gp.X[[-1], :])
 
         # These are estimates of the best lower bound, and its location
         self.best_lower_bound = -np.inf
@@ -679,16 +679,12 @@ class SafeOptSwarm(GaussianProcessOptimization):
         penalties - ndarray
             The value of the penalties
         """
-        unsafe = slack < 0
-        penalties = np.atleast_1d(np.clip(slack, -100000, 0))
-        penalties[slack < -1 * scaling] = - penalties[slack < -1 * scaling]**2
-        penalties[np.logical_and(unsafe, slack > -0.001 * scaling)] *= 2
-        penalties[np.logical_and(unsafe, np.logical_and(
-            slack <= -0.001 * scaling, slack > -0.1 * scaling))] *= 5
-        penalties[np.logical_and(unsafe, np.logical_and(
-            slack <= -0.1 * scaling, slack > -1 * scaling))] *= 10
-        penalties[np.logical_and(
-            unsafe, slack < -1 * scaling)] *= 300
+        penalties = np.atleast_1d(np.clip(slack, None, 0))
+
+        penalties[(slack < 0) & (slack > -0.001 * scaling)] *= 2
+        penalties[(slack <= -0.001 * scaling) & (slack > -0.1 * scaling)] *= 5
+        penalties[(slack <= -0.1 * scaling) & (slack > -scaling)] *= 10
+        penalties[slack < -scaling] = -300 * penalties[slack_id] ** 2
         return penalties
 
     def _compute_particle_fitness(self, particles, swarm_type):
