@@ -859,9 +859,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
         velocity_found = False
         current_coef_up = 1000.
         current_coef_down = 0.
+
+        random_velocity = np.random.rand(self.swarm_size, input_dim)
         while not velocity_found:
             mid = (current_coef_up + current_coef_down) / 2
-            velocities = mid * np.random.rand(self.swarm_size, input_dim)
+            velocities = mid * random_velocity
 
             # simulate one step of movement
             tmp_particles = inertia_beginning * velocities + particles
@@ -894,7 +896,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             particles, swarm_type)
 
         # initialization of the best estimates
-        best_position = particles
+        best_position = particles.copy()
         global_best = best_position[np.argmax(best_value), :]
 
         inertia_coef = (inertia_end - inertia_beginning) / self.max_iters
@@ -903,16 +905,20 @@ class SafeOptSwarm(GaussianProcessOptimization):
             delta_global_best = global_best - particles
             delta_self_best = best_position - particles
             inertia = i * inertia_coef + inertia_beginning
-            r1 = np.random.rand(self.swarm_size, input_dim)
-            r2 = np.random.rand(self.swarm_size, input_dim)
-            velocities = (inertia * velocities + c1 * r1 *
-                          delta_self_best + c2 * r2 * delta_global_best)
+
+            r = np.random.rand(2 * self.swarm_size, input_dim)
+            r1 = r[:self.swarm_size]
+            r2 = r[self.swarm_size:]
+
+            velocities *= inertia
+            velocities += (c1 * r1 * delta_self_best +
+                           c2 * r2 * delta_global_best)
 
             # clip
             np.clip(velocities, -4, 4, out=velocities)
 
             # update position
-            particles = velocities + particles
+            particles += velocities
 
             # Clip particles to domain
             bounds = np.asarray(self.bounds)
@@ -923,10 +929,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
                 particles, swarm_type)
 
             # find out which particles are improving
-            improving = values > best_value
+            update_set = values > best_value
 
             # update whenever safety and improvement are guarenteed
-            update_set = np.logical_and(improving, safe)
+            update_set &= safe
+
             best_value[update_set] = values[update_set]
             best_position[update_set] = particles[update_set]
             global_best = best_position[np.argmax(best_value), :]
@@ -935,24 +942,29 @@ class SafeOptSwarm(GaussianProcessOptimization):
         if swarm_type != 'greedy':
             selected_point_id = np.argmax(best_value)
             append = 0
+
             # compute correlation between new candidates and current safe set
-            mat = self.gp.kern.K(best_position, np.append(
-                self.S, best_position, axis=0)) / self.scaling[0]
-            initial_safe = np.shape(self.S)[0]
+            mat = self.gp.kern.K(best_position,
+                                 np.append(self.S, best_position, axis=0))
+            mat /= self.scaling[0]
+
+            initial_safe = self.S.shape[0]
             n, m = np.shape(mat)
+
             # this mask keeps track of the points that we have added in the
             # safe set to account for them when adding a new point
             mask = np.zeros(m, dtype=np.bool)
             mask[:initial_safe] = True
+
             for j in range(n):
                 # make sure correlation with old points is relatively low
                 good_correlation = np.all(mat[j, mask] <= 0.95)
                 # Note that we force addition of the highest variance point
                 if j == selected_point_id or good_correlation:
-                    pt = np.atleast_2d(best_position[j, :])
-                    self.S = np.append(self.S, pt, axis=0)
+                    self.S = np.append(self.S, best_position[[j], :], axis=0)
                     append += 1
                     mask[initial_safe + j] = True
+
             logging.info("At the end of swarm {}, {} points were appended to"
                          " safeset".format(swarm_type, append))
         else:
