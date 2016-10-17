@@ -684,7 +684,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
         penalties[(slack < 0) & (slack > -0.001 * scaling)] *= 2
         penalties[(slack <= -0.001 * scaling) & (slack > -0.1 * scaling)] *= 5
         penalties[(slack <= -0.1 * scaling) & (slack > -scaling)] *= 10
-        penalties[slack < -scaling] = -300 * penalties[slack_id] ** 2
+
+        slack_id = slack < -scaling
+        penalties[slack_id] = -300 * penalties[slack_id] ** 2
         return penalties
 
     def _compute_particle_fitness(self, particles, swarm_type):
@@ -751,7 +753,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
                 cur_mean = cur_mean.squeeze()
                 cur_std_dev = np.sqrt(cur_var.squeeze())
                 cur_lower_bound = cur_mean - beta * cur_std_dev
-                value = np.maximum(value, cur_std_dev / scaling)
+                values = np.maximum(values, cur_std_dev / scaling)
 
             # if the current GP has no safety constrain, we skip it
             if self.fmin[i] == -np.inf:
@@ -760,8 +762,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             slack = np.atleast_1d(cur_lower_bound - self.fmin[i])
 
             # computing penalties
-            safe = slack >= 0
-            global_safe = np.logical_and(safe, global_safe)
+            global_safe &= slack >= 0
 
             total_penalty += self._compute_penalty(slack, scaling)
 
