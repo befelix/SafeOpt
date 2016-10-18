@@ -64,8 +64,7 @@ templates_path = ['']
 # Generate an autosummary with one file per function.
 autosummary_generate = True
 
-autodoc_default_flags = ['members',
-                         'inherited-members']
+autodoc_default_flags = []
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
