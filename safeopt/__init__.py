@@ -10,6 +10,7 @@ for large problems. :class:`SafeOptSwarm` scales to higher-dimensional
 problems by relying on heuristics and adaptive swarm discretization.
 
 .. autosummary::
+   :template: template.rst
    :toctree: generated/
 
    SafeOpt
@@ -22,6 +23,7 @@ The following are utilities to make testing and working with the library more
 pleasant.
 
 .. autosummary::
+   :template: template.rst
    :toctree: generated/
 
    sample_gp_function
