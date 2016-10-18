@@ -11,7 +11,7 @@ problems by relying on heuristics and adaptive swarm discretization.
 
 .. autosummary::
    :template: template.rst
-   :toctree: generated/
+   :toctree:
 
    SafeOpt
    SafeOptSwarm
@@ -24,7 +24,7 @@ pleasant.
 
 .. autosummary::
    :template: template.rst
-   :toctree: generated/
+   :toctree:
 
    sample_gp_function
    linearly_spaced_combinations
