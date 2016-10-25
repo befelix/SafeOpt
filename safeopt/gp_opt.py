@@ -621,6 +621,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
         Safety threshold for the function value. If multiple safety constraints
         are used this can also be a list of floats (the first one is always
         the one for the values, can be set to None if not wanted)
+    bounds: pair of floats or list of pairs of floats
+        If a list is given, then each pair represents the lower/upper bound in
+        each dimension. Otherwise, we assume the same bounds for all
+        dimensions. This is mostly important for plotting or to restrict
+        particles to a certain domain.
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
@@ -632,17 +637,13 @@ class SafeOptSwarm(GaussianProcessOptimization):
         different input sizes. This should be set to the maximal variance of
         each kernel. You should probably set this to "auto" unless your kernel
         is non-stationary
-    bounds: pair of floats or list of pairs of floats
-        If a list is given, then each pair represents the lower/upper bound in
-        each dimension.
-        Otherwise, we assume the same bounds for all dimensions
     swarm_size: int
         The number of particles in each of the optimization swarms
 
     """
 
-    def __init__(self, gp, fmin, beta=3.0, num_contexts=0, threshold=0,
-                 scaling='auto', bounds=(-5, 5), swarm_size=20):
+    def __init__(self, gp, fmin, bounds, beta=3.0, num_contexts=0, threshold=0,
+                 scaling='auto', swarm_size=20):
         super(SafeOptSwarm, self).__init__(gp, beta, num_contexts, scaling)
 
         self.fmin = fmin
