@@ -69,8 +69,7 @@ class GaussianProcessOptimization(object):
 
         if scaling == 'auto':
             dummy_point = np.zeros((1, self.gps[0].input_dim))
-            self.scaling = [gp.kern.K(dummy_point, dummy_point).squeeze()
-                            for gp in self.gps]
+            self.scaling = [gp.kern.Kdiag(dummy_point)[0] for gp in self.gps]
             self.scaling = np.asarray(self.scaling)
         else:
             self.scaling = np.asarray(scaling)
@@ -233,8 +232,7 @@ class SafeOpt(GaussianProcessOptimization):
     def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
                  num_contexts=0, threshold=0, scaling='auto'):
 
-        super(SafeOpt, self).__init__(
-            gp, beta, num_contexts, scaling)
+        super(SafeOpt, self).__init__(gp, beta, num_contexts, scaling)
 
         if self.num_contexts > 0:
             context_shape = (parameter_set.shape[0], self.num_contexts)
@@ -629,9 +627,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
-    threshold: float
-        The algorithm will not try to expand any points that are below this
-        threshold. This makes the algorithm stop expanding points eventually.
     scaling: list of floats or "auto"
         A list used to scale the GP uncertainties to compensate for
         different input sizes. This should be set to the maximal variance of
@@ -642,7 +637,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     """
 
-    def __init__(self, gp, fmin, bounds, beta=3.0, num_contexts=0, threshold=0,
+    def __init__(self, gp, fmin, bounds, beta=3.0, num_contexts=0,
                  scaling='auto', swarm_size=20):
         super(SafeOptSwarm, self).__init__(gp, beta, num_contexts, scaling)
 
@@ -650,8 +645,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
         self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
-        self.threshold = threshold
-
         # Safe set
         self.S = np.asarray(self.gps[0].X)
 
