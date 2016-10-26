@@ -656,8 +656,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         else:
             self.bounds = bounds
 
-        self.var_max = gp.kern.Kdiag(gp.X[[-1], :])
-
         # These are estimates of the best lower bound, and its location
         self.best_lower_bound = -np.inf
         self.greedy_point = self.S[0, :]
