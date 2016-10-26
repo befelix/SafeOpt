@@ -913,8 +913,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
             # - best sampled point
             particles = np.vstack((self.S[random_id, :],
                                    self.greedy_point,
-                                   self.gp.X[[-1], :],
-                                   self.gp.X[[best_sampled_point]]))
+                                   self.gp.X[-1, :],
+                                   self.gp.X[best_sampled_point]))
         else:
             # we pick particles u.a.r in the safe set
             random_id = np.random.randint(safe_size, size=self.swarm_size)
@@ -925,8 +925,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
             particles, swarm_type)
 
         # initialization of the best estimates
-        best_position = particles.copy()
-        global_best = best_position[np.argmax(best_value), :]
+        best_positions = particles.copy()
+        global_best = best_positions[np.argmax(best_value), :]
 
         # Get a random initial velocity
         velocities = (np.random.rand(self.swarm_size, input_dim) *
@@ -944,7 +944,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         for i in range(self.max_iters):
             # update velocities
             delta_global_best = global_best - particles
-            delta_self_best = best_position - particles
+            delta_self_best = best_positions - particles
 
             inertia += inertia_step
 
@@ -980,21 +980,21 @@ class SafeOptSwarm(GaussianProcessOptimization):
             update_set &= safe
 
             best_value[update_set] = values[update_set]
-            best_position[update_set] = particles[update_set]
-            global_best = best_position[np.argmax(best_value), :]
+            best_positions[update_set] = particles[update_set]
+            global_best = best_positions[np.argmax(best_value), :]
 
         # expand safe set
         if swarm_type != 'greedy':
             selected_point_id = np.argmax(best_value)
-            append = 0
+            num_added = 0
 
             # compute correlation between new candidates and current safe set
-            mat = self.gp.kern.K(best_position,
-                                 np.append(self.S, best_position, axis=0))
-            mat /= self.scaling[0] ** 2
+            covariance = self.gp.kern.K(best_positions,
+                                        np.vstack((self.S, best_positions)))
+            covariance /= self.scaling[0] ** 2
 
-            initial_safe = self.S.shape[0]
-            n, m = np.shape(mat)
+            initial_safe = len(self.S)
+            n, m = np.shape(covariance)
 
             # this mask keeps track of the points that we have added in the
             # safe set to account for them when adding a new point
@@ -1003,23 +1003,23 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             for j in range(n):
                 # make sure correlation with old points is relatively low
-                good_correlation = np.all(mat[j, mask] <= 0.95)
+                good_correlation = np.all(covariance[j, mask] <= 0.95)
                 # Note that we force addition of the highest variance point
                 if j == selected_point_id or good_correlation:
-                    self.S = np.append(self.S, best_position[[j], :], axis=0)
-                    append += 1
+                    self.S = np.vstack((self.S, best_positions[[j], :]))
+                    num_added += 1
                     mask[initial_safe + j] = True
 
-            logging.info("At the end of swarm {}, {} points were appended to"
-                         " safeset".format(swarm_type, append))
+            logging.debug("At the end of swarm {}, {} points were appended to"
+                          " the safeset".format(swarm_type, num_added))
         else:
             # check whether we found a better estimate of the lower bound
-            mean, var = self.gps[0].predict_noiseless(
-                np.atleast_2d(self.greedy_point))
+            mean, var = self.gp.predict_noiseless(self.greedy_point[None, :])
             mean = mean.squeeze()
             std_dev = np.sqrt(var.squeeze())
-            lower_bound1 = mean - beta * std_dev
-            if lower_bound1 < np.max(best_value):
+
+            lower_bound = mean - beta * std_dev
+            if lower_bound < np.max(best_value):
                 self.greedy_point = global_best
 
         if swarm_type == 'greedy':
@@ -1028,7 +1028,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # compute the variance of the point picked
         max_std_dev = 0.
         for gp, scaling in zip(self.gps, self.scaling):
-            var = gp.predict_noiseless(np.atleast_2d(global_best))[1]
+            var = gp.predict_noiseless(global_best[None, :])[1]
             max_std_dev = np.max(np.sqrt(var.squeeze()) / scaling, max_std_dev)
 
         return global_best, max_std_dev
