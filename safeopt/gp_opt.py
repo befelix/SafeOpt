@@ -667,6 +667,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         Note that this only works well for stationary kernels and constant mean
         functions. Otherwise the velocity depends on the position!
+
+        Returns
+        -------
+        velocities: ndarray
+            The estimated optimal velocities in each direction.
         """
         parameters = np.zeros((1, self.gp.input_dim), dtype=np.float)
         velocities = np.empty((len(self.gps), self.gp.input_dim),
