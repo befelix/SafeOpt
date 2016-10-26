@@ -661,15 +661,19 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.greedy_point = self.S[0, :]
 
     def _compute_penalty(self, slack, scaling):
-        """
-        Return the penalty associated to a constraint violation
+        """Return the penalty associated to a constraint violation.
+
+        The penalty is a piecewise linear function that is nonzero only if the
+        safety constraints are violated. This penalty encourages particles to
+        stay within the safe set.
 
         Parameters
         ----------
         slack: ndarray
-            A vector corresponding to how much the constraint was violated
+            A vector corresponding to how much the constraint was violated.
         scaling: float
-            A float corresponding to the maximal variance of the corresponding GP
+            A float corresponding to the maximal variance of the corresponding
+            GP
         Returns
         -------
         penalties - ndarray
@@ -691,20 +695,20 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         Parameters
         ----------
-        particles: ndarray
+        particles : ndarray
             A vector containing the coordinates of the particles
-        swarm_type: string
+        swarm_type : string
             A string corresponding to the swarm type. It can be any of the
-            following:
-                - "greedy" : estimate of the best lower bound
-                - "expander" : find expender points
-                - "maximizer" : find maximizer points
-                - "safe_set" : special parameter to check only safety
+            following strings:
+                * 'greedy' : Optimal value(best lower bound).
+                * 'expander' : Expanders (lower bound close to constraint)
+                * 'maximizer' : Maximizers (Upper bound better than best l)
+                * 'safe_set' : Only check the safety of the particles
         Returns
         -------
-        values - ndarray
+        values : ndarray
             The values of the particles
-        global_safe - ndarray
+        global_safe : ndarray
             A boolean mask indicating safety status of all particles
             (note that in the case of a greedy swarm, this is not computed and
             we return a True mask)
