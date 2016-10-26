@@ -715,7 +715,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
         beta = self.beta(self.t)
 
-        # classify the particles points
+        # classify the particle's function values
         mean, var = self.gps[0].predict_noiseless(particles)
         mean = mean.squeeze()
         std_dev = np.sqrt(var.squeeze())
@@ -726,61 +726,74 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         # the greedy swarm optimizes for the lower bound
         if swarm_type == 'greedy':
-            return lower_bound, np.ones(lower_bound.shape[0], dtype=np.bool)
+            return lower_bound, np.broadcast_to(True, len(lower_bound))
 
         # value we are optimizing for. Expanders and maximizers seek high
         # variance points
         values = std_dev / self.scaling[0]
 
-        # define the interest function based on the particle type
-        if swarm_type == 'maximizers':
-            interest_function = expit(upper_bound - self.best_lower_bound)
-        elif swarm_type == 'expanders' or swarm_type == 'safe_set':
-            interest_function = np.ones(np.shape(values))
+        #
+        is_safe = swarm_type == 'safe_set'
+        is_expander = swarm_type == 'expanders'
+        is_maximizer = swarm_type == 'maximizers'
+
+        if is_safe:
+            interest_function = None
         else:
-            # unknown particle type (shouldn't happen)
-            raise AssertionError("Invalid swarm type")
+            if is_expander:
+                # For expanders, the interest function is updated depending on
+                # the lower bounds
+                interest_function = np.ones(np.shape(values), dtype=np.float)
+            elif is_maximizer:
+                interest_function = expit(upper_bound - self.best_lower_bound)
+            else:
+                # unknown particle type (shouldn't happen)
+                raise AssertionError("Invalid swarm type")
 
         # boolean mask that tell if the particles are safe according to all gps
         global_safe = np.ones(particles.shape[0], dtype=np.bool)
-        total_penalty = np.zeros(particles.shape[0])
+        total_penalty = np.zeros(particles.shape[0], dtype=np.float)
+
         for i, (gp, scaling) in enumerate(zip(self.gps, self.scaling)):
-            if i == 0:
-                cur_lower_bound = lower_bound  # reuse computation
-            else:
+            # Only recompute confidence intervals for constraints
+            if i > 0:
                 # classify using the current GP
-                cur_mean, cur_var = gp.predict_noiseless(particles)
-                cur_mean = cur_mean.squeeze()
-                cur_std_dev = np.sqrt(cur_var.squeeze())
-                cur_lower_bound = cur_mean - beta * cur_std_dev
-                values = np.maximum(values, cur_std_dev / scaling)
+                mean, var = gp.predict_noiseless(particles)
+                mean = mean.squeeze()
+                std_dev = np.sqrt(var.squeeze())
+                lower_bound = mean - beta * std_dev
+
+                values = np.maximum(values, std_dev / scaling)
 
             # if the current GP has no safety constrain, we skip it
             if self.fmin[i] == -np.inf:
                 continue
 
-            slack = np.atleast_1d(cur_lower_bound - self.fmin[i])
+            slack = np.atleast_1d(lower_bound - self.fmin[i])
 
             # computing penalties
             global_safe &= slack >= 0
 
+            # Skip cost update for safety evaluation
+            if is_safe:
+                continue
+
             total_penalty += self._compute_penalty(slack, scaling)
 
-            if swarm_type == 'expanders':
+            if is_expander:
                 # check if the particles are expanders for the current gp
-                interest_function *= norm.pdf(cur_lower_bound,
-                                              loc=self.fmin[i])
+                interest_function *= norm.pdf(lower_bound, loc=self.fmin[i])
+
+        # this swarm type is only interested in knowing whether the particles
+        # are safe.
+        if is_safe:
+            return lower_bound, global_safe
 
         # add penalty
         values += total_penalty
 
         # apply the mask for current interest function
         values *= interest_function
-
-        # this swarm type is only interested in knowing whether the particles
-        # are safe.
-        if swarm_type == 'safe_set':
-            values = lower_bound
 
         return values, global_safe
 
