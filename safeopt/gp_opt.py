@@ -883,11 +883,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         c1 = 2  # coefficient of the regret term
         c2 = 2  # coefficient of the social term
 
-        # Inertia term at the beginning of optimization
-        inertia_beginning = 1.0
-        # Inertia term at the end of optimization
-        inertia_end = 0.1
-
         # Make sure the safe set is still safe
         _, safe = self._compute_particle_fitness(self.S, 'safe_set')
 
@@ -901,7 +896,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             self.S = self.S[safe]
             safe_size = self.S.shape[0]
 
-        # init particles
+        # initialize particles
         if swarm_type == 'greedy':
             # we pick particles u.a.r in the safe set
             random_id = np.random.randint(safe_size, size=self.swarm_size - 3)
@@ -932,23 +927,35 @@ class SafeOptSwarm(GaussianProcessOptimization):
         velocities = (np.random.rand(self.swarm_size, input_dim) *
                       self.optimal_velocities)
 
-        inertia_coef = (inertia_end - inertia_beginning) / self.max_iters
+        # Initial inertia of particles changes over iterations
+        inertia = 1.0
+        final_inertia = 0.1
+        max_velocity = 10 * self.optimal_velocities
+
+        inertia_step = (final_inertia - inertia) / self.max_iters
+        inertia -= inertia_step
+
+        # run the core swarm optimization
         for i in range(self.max_iters):
             # update velocities
             delta_global_best = global_best - particles
             delta_self_best = best_position - particles
-            inertia = i * inertia_coef + inertia_beginning
 
+            inertia += inertia_step
+
+            # Random update vectors
             r = np.random.rand(2 * self.swarm_size, input_dim)
             r1 = r[:self.swarm_size]
             r2 = r[self.swarm_size:]
 
+            # Update the velocities
             velocities *= inertia
             velocities += (c1 * r1 * delta_self_best +
                            c2 * r2 * delta_global_best)
 
             # clip
-            np.clip(velocities, -4, 4, out=velocities)
+            # np.clip(velocities, -4, 4, out=velocities)
+            np.clip(velocities, -max_velocity, max_velocity, out=velocities)
 
             # update position
             particles += velocities
