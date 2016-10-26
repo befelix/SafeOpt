@@ -1046,13 +1046,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
 
         # compute estimate of the lower bound
-        self.greedy, self.best_lower_bound = self.get_new_query_point(
-            'greedy')
+        self.greedy, self.best_lower_bound = self.get_new_query_point('greedy')
 
-        # Run both swarm:
-        # Maximizers
+        # Run both swarms:
         x_maxi, val_maxi = self.get_new_query_point('maximizers')
-        # Expanders
         x_exp, val_exp = self.get_new_query_point('expanders')
 
         logging.info("The best maximizer has variance %f" % val_maxi)
@@ -1061,11 +1058,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
                      self.best_lower_bound)
 
         if val_maxi > val_exp:
-            x = x_maxi
+            return x_maxi
         else:
-            x = x_exp
-        self.t += 1
-        return x
+            return x_exp
 
     def get_maximum(self):
         """
