@@ -689,10 +689,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
                 # Binary search over optimal velocities
                 while True:
                     mid = (upper_velocity + lower_velocity) / 2
-                    tmp_velocities[j] = mid
+                    tmp_velocities[0, j] = mid
 
                     kernel_matrix = gp.kern.K(parameters, tmp_velocities)
-                    covariance = kernel_matrix.squeeze() / self.scaling[j] ** 2
+                    covariance = kernel_matrix.squeeze() / self.scaling[i] ** 2
 
                     # Make sure the correlation is in the sweet spot
                     velocity_enough = covariance > 0.94
