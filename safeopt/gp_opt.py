@@ -604,7 +604,8 @@ class SafeOpt(GaussianProcessOptimization):
 class SafeOptSwarm(GaussianProcessOptimization):
     """SafeOpt for larger dimensions using a Swarm Optimization heuristic.
 
-    Note that it doesn't support the use of a Lipschitz constant
+    Note that it doesn't support the use of a Lipschitz constant nor contextual
+    optimization.
 
     You can set your logging level to INFO to get more insights on the
     optimization process.
@@ -634,6 +635,27 @@ class SafeOptSwarm(GaussianProcessOptimization):
         is non-stationary
     swarm_size: int
         The number of particles in each of the optimization swarms
+
+    Examples
+    --------
+    >>> from safeopt import SafeOptSwarm
+    >>> import GPy
+    >>> import numpy as np
+
+    Define a Gaussian process prior over the performance
+
+    >>> x = np.array([[0.]])
+    >>> y = np.array([[1.]])
+    >>> gp = GPy.models.GPRegression(1, x, y)
+
+    Initialize the Bayesian optimization and get new parameters to evaluate
+
+    >>> opt = SafeOptSwarm(gp, fmin=[0.], bounds=[[-1., 1.]])
+    >>> next_parameters = opt.optimize()
+
+    Add a new data point with the parameters and the performance to the GP.
+
+    >>> opt.add_new_data_point(next_parameters, performance)
 
     """
 
