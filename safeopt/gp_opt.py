@@ -807,14 +807,13 @@ class SafeOptSwarm(GaussianProcessOptimization):
         Parameters
         ----------
         swarm_type: string
-            This parameter controls the type of point that should be found.
-              -If set to "expanders", it will try to find a point that
-               increases the safe set
-              -If set to "maximizers", it will try to find a point that
-               maximizes the objective function within the safe set
-              -"Greedy" is a convenience parameter to retrieve an estimate of
-               the best currently known point, given the observations already
-               made.
+            This parameter controls the type of point that should be found. It
+            can take one of the following values
+                * 'expanders' : find a point that increases the safe set
+                * 'maximizers' : find a point that maximizes the objective
+                                 function within the safe set.
+                * 'greedy' : retrieve an estimate of the best currently known
+                             parameters (best lower bound).
 
         Returns
         -------
@@ -830,21 +829,24 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # Parameters of PSO
         c1 = 2  # coefficient of the regret term
         c2 = 2  # coefficient of the social term
-        inertia_beginning = 1.2  # Inertia term at the beginning of optimization
-        inertia_end = 0.1  # Inertia term at the end of optimization
+
+        # Inertia term at the beginning of optimization
+        inertia_beginning = 1.2
+        # Inertia term at the end of optimization
+        inertia_end = 0.1
 
         # Make sure the safe set is still safe
         lower_bound, safe = self._compute_particle_fitness(self.S, 'safe_set')
-        unsafe = np.logical_not(safe)
+
         if not np.all(safe):
+            # Warn that the safe set has decreased
             logging.warning("Warning: {} unsafe points removed. "
                             "Model might be violated"
-                            .format(np.count_nonzero(unsafe)))
-            try:
-                self.S = self.S[safe]
-                safe_size = self.S.shape[0]
-            except:
-                pass
+                            .format(np.count_nonzero(~safe)))
+
+            # Remove unsafe points
+            self.S = self.S[safe]
+            safe_size = self.S.shape[0]
 
         # init particles
         if swarm_type == 'greedy':
