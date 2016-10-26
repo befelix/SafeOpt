@@ -70,7 +70,7 @@ class GaussianProcessOptimization(object):
         if scaling == 'auto':
             dummy_point = np.zeros((1, self.gps[0].input_dim))
             self.scaling = [gp.kern.Kdiag(dummy_point)[0] for gp in self.gps]
-            self.scaling = np.asarray(self.scaling)
+            self.scaling = np.sqrt(np.asarray(self.scaling))
         else:
             self.scaling = np.asarray(scaling)
             if self.scaling.shape[0] != len(self.gps):
@@ -692,7 +692,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
                     tmp_velocities[j] = mid
 
                     kernel_matrix = gp.kern.K(parameters, tmp_velocities)
-                    covariance = kernel_matrix.squeeze() / self.scaling[j]
+                    covariance = kernel_matrix.squeeze() / self.scaling[j] ** 2
 
                     # Make sure the correlation is in the sweet spot
                     velocity_enough = covariance > 0.94
@@ -991,7 +991,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             # compute correlation between new candidates and current safe set
             mat = self.gp.kern.K(best_position,
                                  np.append(self.S, best_position, axis=0))
-            mat /= self.scaling[0]
+            mat /= self.scaling[0] ** 2
 
             initial_safe = self.S.shape[0]
             n, m = np.shape(mat)
