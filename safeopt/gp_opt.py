@@ -660,6 +660,59 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.best_lower_bound = -np.inf
         self.greedy_point = self.S[0, :]
 
+        self.optimal_velocities = self.optimize_particle_velocity()
+
+    def optimize_particle_velocity(self):
+        """Optimize the velocities of the particles.
+
+        Note that this only works well for stationary kernels and constant mean
+        functions. Otherwise the velocity depends on the position!
+        """
+        parameters = np.zeros((1, self.gp.input_dim), dtype=np.float)
+        velocities = np.empty((len(self.gps), self.gp.input_dim),
+                              dtype=np.float)
+
+        for i, gp in enumerate(self.gps):
+            for j in range(self.gp.input_dim):
+                tmp_velocities = np.zeros((1, self.gp.input_dim),
+                                          dtype=np.float)
+
+                # lower and upper bounds on velocities
+                upper_velocity = 1000.
+                lower_velocity = 0.
+
+                # Binary search over optimal velocities
+                while True:
+                    mid = (upper_velocity + lower_velocity) / 2
+                    tmp_velocities[j] = mid
+
+                    kernel_matrix = gp.kern.K(parameters, tmp_velocities)
+                    covariance = kernel_matrix.squeeze() / self.scaling[j]
+
+                    # Make sure the correlation is in the sweet spot
+                    velocity_enough = covariance > 0.94
+                    not_too_fast = covariance < 0.95
+
+                    if not_too_fast:
+                        upper_velocity = mid
+                    elif velocity_enough:
+                        lower_velocity = mid
+
+                    if ((not_too_fast and velocity_enough) or
+                            upper_velocity - lower_velocity < 1e-5):
+                        break
+
+                # Store optimal velocity
+                velocities[i, j] = mid
+
+        # Select the minimal velocity (for the toughest safety constraint)
+        velocities = np.min(velocities, axis=0)
+
+        # Scale for number of parameters (this might not be so clever if they
+        # are all independent, additive kernels).
+        velocities /= np.sqrt(self.gp.input_dim)
+        return velocities
+
     def _compute_penalty(self, slack, scaling):
         """Return the penalty associated to a constraint violation.
 
@@ -831,12 +884,12 @@ class SafeOptSwarm(GaussianProcessOptimization):
         c2 = 2  # coefficient of the social term
 
         # Inertia term at the beginning of optimization
-        inertia_beginning = 1.2
+        inertia_beginning = 1.0
         # Inertia term at the end of optimization
         inertia_end = 0.1
 
         # Make sure the safe set is still safe
-        lower_bound, safe = self._compute_particle_fitness(self.S, 'safe_set')
+        _, safe = self._compute_particle_fitness(self.S, 'safe_set')
 
         if not np.all(safe):
             # Warn that the safe set has decreased
@@ -867,45 +920,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
             random_id = np.random.randint(safe_size, size=self.swarm_size)
             particles = self.S[random_id, :]
 
-        # we now find a velocity that gets us away from the current points, but
-        # that doesn't get too far (ie we seek points that still highly
-        # correlated)
-        # the following is a binary search
-        velocity_found = False
-        current_coef_up = 1000.
-        current_coef_down = 0.
-
-        random_velocity = np.random.rand(self.swarm_size, input_dim)
-        while not velocity_found:
-            mid = (current_coef_up + current_coef_down) / 2
-            velocities = mid * random_velocity
-
-            # simulate one step of movement
-            tmp_particles = inertia_beginning * velocities + particles
-            for cur_dim in range(input_dim):
-                tmp_particles[:, cur_dim] = np.clip(tmp_particles[:, cur_dim],
-                                                    self.bounds[cur_dim][0],
-                                                    self.bounds[cur_dim][1])
-
-            # compute correlation with current safe set.
-            # TODO maybe make this dependent on all the kernels
-            kernel_matrix = (self.gps[0].kern.K(tmp_particles, self.S) /
-                             self.scaling[0])
-            closest = np.max(kernel_matrix, axis=1)
-            # make sure that the velocity is not too big (takes us out of safe
-            # set)
-            velocity_reasonable = np.min(closest) >= 0.9
-            # make sure that the velocity is big enough (for exploration
-            # purposes)
-            velocity_enough = np.max(closest) <= 0.98
-            velocity_found = ((velocity_reasonable and velocity_enough) or
-                              abs(current_coef_down - current_coef_up) < 0.001)
-
-            if velocity_enough:
-                current_coef_up = mid
-            else:
-                current_coef_down = mid
-
         # compute initial fitness
         best_value, safe = self._compute_particle_fitness(
             particles, swarm_type)
@@ -913,6 +927,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # initialization of the best estimates
         best_position = particles.copy()
         global_best = best_position[np.argmax(best_value), :]
+
+        # Get a random initial velocity
+        velocities = (np.random.rand(self.swarm_size, input_dim) *
+                      self.optimal_velocities)
 
         inertia_coef = (inertia_end - inertia_beginning) / self.max_iters
         for i in range(self.max_iters):
