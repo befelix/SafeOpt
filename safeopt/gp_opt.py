@@ -637,9 +637,10 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     """
 
-    def __init__(self, gp, fmin, bounds, beta=3.0, num_contexts=0,
-                 scaling='auto', swarm_size=20):
-        super(SafeOptSwarm, self).__init__(gp, beta, num_contexts, scaling)
+    def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto',
+                 swarm_size=20):
+        super(SafeOptSwarm, self).__init__(gp, beta, num_contexts=0,
+                                           scaling=scaling)
 
         self.fmin = fmin
         if not isinstance(self.fmin, list):
