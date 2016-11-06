@@ -642,7 +642,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         each kernel. You should probably set this to "auto" unless your kernel
         is non-stationary
     swarm_size: int
-        The number of particles in each of the optimization swarms.
+        The number of particles in each of the optimization swarms
 
     Examples
     --------
@@ -681,7 +681,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # Safe set
         self.S = np.asarray(self.gps[0].X)
 
-        self.swarm_size = max(4, swarm_size)
+        self.swarm_size = swarm_size
         self.max_iters = 100  # number of swarm iterations
 
         if not isinstance(bounds, list):
@@ -792,8 +792,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             A string corresponding to the swarm type. It can be any of the
             following strings:
 
-                * 'greedy' : Optimal value (best lower bound).
-                * 'ucb' : Upper confidence bound.
+                * 'greedy' : Optimal value(best lower bound).
                 * 'expander' : Expanders (lower bound close to constraint)
                 * 'maximizer' : Maximizers (Upper bound better than best l)
                 * 'safe_set' : Only check the safety of the particles
@@ -820,8 +819,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # the greedy swarm optimizes for the lower bound
         if swarm_type == 'greedy':
             return lower_bound, np.broadcast_to(True, len(lower_bound))
-        if swarm_type == 'ucb':
-            return upper_bound, np.broadcast_to(True, len(upper_bound))
 
         # value we are optimizing for. Expanders and maximizers seek high
         # variance points
@@ -906,12 +903,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
             This parameter controls the type of point that should be found. It
             can take one of the following values:
 
-                * 'expanders' : find a point that increases the safe set.
+                * 'expanders' : find a point that increases the safe set
                 * 'maximizers' : find a point that maximizes the objective
                                  function within the safe set.
                 * 'greedy' : retrieve an estimate of the best currently known
                              parameters (best lower bound).
-                * 'ucb': best upper bound within safe set.
 
         Returns
         -------
@@ -942,7 +938,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             safe_size = self.S.shape[0]
 
         # initialize particles
-        if swarm_type == 'greedy' or swarm_type == 'ucb':
+        if swarm_type == 'greedy':
             # we pick particles u.a.r in the safe set
             random_id = np.random.randint(safe_size, size=self.swarm_size - 3)
             best_sampled_point = np.argmax(self.gp.Y)
@@ -1024,7 +1020,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             global_best = best_positions[np.argmax(best_value), :]
 
         # expand safe set
-        if swarm_type == 'maximizers' or swarm_type == 'expanders':
+        if swarm_type != 'greedy':
             selected_point_id = np.argmax(best_value)
             num_added = 0
 
@@ -1073,24 +1069,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         return global_best, max_std_dev
 
-    def optimize(self, ucb=False):
+    def optimize(self):
         """Run Safe Bayesian optimization and get the next parameters.
-
-        Parameters
-        ----------
-        ucb: bool
-            Whether to run the UCB algorithm within the safe set instead.
-            Note that this is only usefull once the safe set has been
-            explored sufficiently.
 
         Returns
         -------
         x: np.array
             The next parameters that should be evaluated.
         """
-        if ucb:
-            logging.info('Using the UCB algorithm.')
-            return self.get_new_query_point('ucb')[0]
 
         # compute estimate of the lower bound
         self.greedy, self.best_lower_bound = self.get_new_query_point('greedy')
