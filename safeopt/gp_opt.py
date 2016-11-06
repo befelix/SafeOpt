@@ -1127,9 +1127,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         Returns
         -------
-        x - ndarray
+        x : ndarray
             Location of the maximum
-        y - 0darray
+        y : 0darray
             Maximum value
 
         """
