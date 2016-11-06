@@ -463,7 +463,7 @@ class SafeOpt(GaussianProcessOptimization):
                         break
             else:
                 # Check if expander for all GPs
-                for i in range(len(self.gps)):
+                for i, gp in enumerate(self.gps):
                     # Skip evlauation if 'no' safety constraint
                     if self.fmin[i] == -np.inf:
                         continue
@@ -472,14 +472,13 @@ class SafeOpt(GaussianProcessOptimization):
                     self.add_new_data_point(self.parameter_set[s, :][index, :],
                                             u[s, i][index],
                                             context=self.context,
-                                            gp=self.gps[i])
+                                            gp=gp)
 
                     # Prediction of previously unsafe points based on that
-                    mean2, var2 =\
-                        self.gps[i].predict_noiseless(self.inputs[~self.S])
+                    mean2, var2 = gp.predict_noiseless(self.inputs[~self.S])
 
                     # Remove the fake data point from the GP again
-                    self.remove_last_data_point(gp=self.gps[i])
+                    self.remove_last_data_point(gp=gp)
 
                     mean2 = mean2.squeeze()
                     var2 = var2.squeeze()
