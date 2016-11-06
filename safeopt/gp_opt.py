@@ -1044,9 +1044,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             for j in range(n):
                 # make sure correlation with old points is relatively low
-                good_correlation = np.all(covariance[j, mask] <= 0.95)
-                # Note that we force addition of the highest variance point
-                if j == selected_point_id or good_correlation:
+                if np.all(covariance[j, mask] <= 0.95):
                     self.S = np.vstack((self.S, best_positions[[j], :]))
                     num_added += 1
                     mask[initial_safe + j] = True
