@@ -45,13 +45,18 @@ class GaussianProcessOptimization(object):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
+    threshold: float or list of floats
+        The algorithm will not try to expand any points that are below this
+        threshold. This makes the algorithm stop expanding points eventually.
+        If a list, this represents the stopping criterion for all the gps.
+        This ignores the scaling factor.
     scaling: list of floats or "auto"
         A list used to scale the GP uncertainties to compensate for
         different input sizes. This should be set to the maximal variance of each kernel.
         You should probably leave this to "auto" unless your kernel is non stationnary
     """
 
-    def __init__(self, gp, beta, num_contexts, scaling='auto'):
+    def __init__(self, gp, beta, num_contexts, threshold=0, scaling='auto'):
         super(GaussianProcessOptimization, self).__init__()
 
         if isinstance(gp, list):
@@ -77,6 +82,7 @@ class GaussianProcessOptimization(object):
                 raise ValueError("The number of scaling values should be "
                                  "equal to the number of GPs")
 
+        self.threshold = threshold
         self._parameter_set = None
         self.bounds = None
         self.num_samples = 0
@@ -219,9 +225,11 @@ class SafeOpt(GaussianProcessOptimization):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
-    threshold: float
+    threshold: float or list of floats
         The algorithm will not try to expand any points that are below this
         threshold. This makes the algorithm stop expanding points eventually.
+        If a list, this represents the stopping criterion for all the gps.
+        This ignores the scaling factor.
     scaling: list of floats or "auto"
         A list used to scale the GP uncertainties to compensate for
         different input sizes. This should be set to the maximal variance of
@@ -232,7 +240,8 @@ class SafeOpt(GaussianProcessOptimization):
     def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
                  num_contexts=0, threshold=0, scaling='auto'):
 
-        super(SafeOpt, self).__init__(gp, beta, num_contexts, scaling)
+        super(SafeOpt, self).__init__(gp, beta, num_contexts, threshold,
+                                      scaling)
 
         if self.num_contexts > 0:
             context_shape = (parameter_set.shape[0], self.num_contexts)
@@ -245,7 +254,6 @@ class SafeOpt(GaussianProcessOptimization):
 
         self.fmin = fmin
         self.liptschitz = lipschitz
-        self.threshold = threshold
 
         if not isinstance(self.fmin, list):
             self.fmin = [self.fmin] * len(self.gps)
@@ -420,7 +428,8 @@ class SafeOpt(GaussianProcessOptimization):
 
             # Remove points with a variance that is too small
             s[s] = (np.max((u[s, :] - l[s, :]) / self.scaling, axis=1) >
-                    max(max_var, self.threshold))
+                    max_var)
+            s[s] = np.any(u[s, :] - l[s, :] > self.threshold, axis=1)
 
             if not np.any(s):
                 # no need to evaluate any points as expanders in G, exit
@@ -660,7 +669,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto',
                  swarm_size=20):
-        super(SafeOptSwarm, self).__init__(gp, beta, num_contexts=0,
+        super(SafeOptSwarm, self).__init__(gp, beta,
+                                           num_contexts=0,
+                                           threshold=0,
                                            scaling=scaling)
 
         self.fmin = fmin
