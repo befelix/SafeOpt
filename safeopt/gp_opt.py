@@ -1069,8 +1069,13 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         return global_best, max_std_dev
 
-    def optimize(self):
+    def optimize(self, ucb=False):
         """Run Safe Bayesian optimization and get the next parameters.
+
+        Parameters
+        ----------
+        ucb: bool
+            Whether to only compute maximizers (best upper bound).
 
         Returns
         -------
@@ -1083,6 +1088,9 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         # Run both swarms:
         x_maxi, val_maxi = self.get_new_query_point('maximizers')
+        if ucb:
+            logging.info('Using ucb criterion.')
+            return x_maxi
         x_exp, val_exp = self.get_new_query_point('expanders')
 
         logging.info("The best maximizer has variance %f" % val_maxi)
