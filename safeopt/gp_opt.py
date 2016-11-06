@@ -979,15 +979,12 @@ class SafeOptSwarm(GaussianProcessOptimization):
         max_velocity = 10 * self.optimal_velocities
 
         inertia_step = (final_inertia - inertia) / self.max_iters
-        inertia -= inertia_step
 
         # run the core swarm optimization
         for i in range(self.max_iters):
             # update velocities
             delta_global_best = global_best - particles
             delta_self_best = best_positions - particles
-
-            inertia += inertia_step
 
             # Random update vectors
             r = np.random.rand(2 * self.swarm_size, input_dim)
@@ -998,6 +995,8 @@ class SafeOptSwarm(GaussianProcessOptimization):
             velocities *= inertia
             velocities += (c1 * r1 * delta_self_best +
                            c2 * r2 * delta_global_best)
+
+            inertia += inertia_step
 
             # clip
             # np.clip(velocities, -4, 4, out=velocities)
@@ -1017,7 +1016,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             # find out which particles are improving
             update_set = values > best_value
 
-            # update whenever safety and improvement are guarenteed
+            # update whenever safety and improvement are guaranteed
             update_set &= safe
 
             best_value[update_set] = values[update_set]
@@ -1026,7 +1025,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         # expand safe set
         if swarm_type != 'greedy':
-            selected_point_id = np.argmax(best_value)
             num_added = 0
 
             # compute correlation between new candidates and current safe set
