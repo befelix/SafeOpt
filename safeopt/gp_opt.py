@@ -429,7 +429,7 @@ class SafeOpt(GaussianProcessOptimization):
             # Remove points with a variance that is too small
             s[s] = (np.max((u[s, :] - l[s, :]) / self.scaling, axis=1) >
                     max_var)
-            s[s] = np.any(u[s, :] - l[s, :] > self.threshold, axis=1)
+            s[s] = np.any(u[s, :] - l[s, :] > self.threshold * beta, axis=1)
 
             if not np.any(s):
                 # no need to evaluate any points as expanders in G, exit
