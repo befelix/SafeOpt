@@ -754,7 +754,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
             A vector corresponding to how much the constraint was violated.
         scaling: float
             A float corresponding to the maximal variance of the corresponding
-            GP
+            GP.
         Returns
         -------
         penalties - ndarray
@@ -781,6 +781,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         swarm_type : string
             A string corresponding to the swarm type. It can be any of the
             following strings:
+
                 * 'greedy' : Optimal value(best lower bound).
                 * 'expander' : Expanders (lower bound close to constraint)
                 * 'maximizer' : Maximizers (Upper bound better than best l)
@@ -885,11 +886,13 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         This function relies on a Particle Swarm Optimization (PSO) to find the
         optimum of the objective function (which depends on the swarm type).
+
         Parameters
         ----------
         swarm_type: string
             This parameter controls the type of point that should be found. It
-            can take one of the following values
+            can take one of the following values:
+
                 * 'expanders' : find a point that increases the safe set
                 * 'maximizers' : find a point that maximizes the objective
                                  function within the safe set.
@@ -1058,9 +1061,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     def optimize(self):
         """Run Safe Bayesian optimization and get the next parameters.
-
-        Parameters
-        ----------
 
         Returns
         -------
