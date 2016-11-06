@@ -636,6 +636,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
+    threshold: float or list of floats
+        The algorithm will not try to expand any points that are below this
+        threshold. This makes the algorithm stop expanding points eventually.
+        If a list, this represents the stopping criterion for all the gps.
+        This ignores the scaling factor.
     scaling: list of floats or "auto"
         A list used to scale the GP uncertainties to compensate for
         different input sizes. This should be set to the maximal variance of
@@ -667,11 +672,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     """
 
-    def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto',
+    def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto', threshold=0,
                  swarm_size=20):
         super(SafeOptSwarm, self).__init__(gp, beta,
                                            num_contexts=0,
-                                           threshold=0,
+                                           threshold=threshold,
                                            scaling=scaling)
 
         self.fmin = fmin
@@ -914,7 +919,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         global_best: np.array
             The next parameters that should be evaluated.
         max_std_dev: float
-            The current standard deviation in the point to be evaluated
+            The current standard deviation in the point to be evaluated.
         """
 
         beta = self.beta(self.t)
@@ -1062,12 +1067,12 @@ class SafeOptSwarm(GaussianProcessOptimization):
             return global_best, np.max(best_value)
 
         # compute the variance of the point picked
-        max_std_dev = 0.
-        for gp, scaling in zip(self.gps, self.scaling):
-            var = gp.predict_noiseless(global_best[None, :])[1]
-            max_std_dev = np.max(np.sqrt(var.squeeze()) / scaling, max_std_dev)
+        var = np.empty(len(self.gps), dtype=np.float)
+        # max_std_dev = 0.
+        for i, (gp, scaling) in enumerate(zip(self.gps, self.scaling)):
+            var[i] = gp.predict_noiseless(global_best[None, :])[1]
 
-        return global_best, max_std_dev
+        return global_best, np.sqrt(var)
 
     def optimize(self, ucb=False):
         """Run Safe Bayesian optimization and get the next parameters.
@@ -1087,18 +1092,28 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.greedy, self.best_lower_bound = self.get_new_query_point('greedy')
 
         # Run both swarms:
-        x_maxi, val_maxi = self.get_new_query_point('maximizers')
+        x_maxi, std_maxi = self.get_new_query_point('maximizers')
         if ucb:
             logging.info('Using ucb criterion.')
             return x_maxi
-        x_exp, val_exp = self.get_new_query_point('expanders')
 
-        logging.info("The best maximizer has variance %f" % val_maxi)
-        logging.info("The best expander has variance %f" % val_exp)
+        x_exp, std_exp = self.get_new_query_point('expanders')
+
+        # Remove expanders below threshold or without safety constraint.
+        std_exp[(std_exp < self.threshold) | (self.fmin == -np.inf)] = 0
+
+        # Apply scaling
+        std_exp /= self.scaling
+        std_exp = np.max(std_exp)
+
+        std_maxi = std_maxi[0] / self.scaling[0]
+
+        logging.info("The best maximizer has std. dev. %f" % std_maxi)
+        logging.info("The best expander has std. dev. %f" % std_exp)
         logging.info("The greedy estimate of lower bound has value %f" %
                      self.best_lower_bound)
 
-        if val_maxi > val_exp:
+        if std_maxi > std_exp:
             return x_maxi
         else:
             return x_exp
