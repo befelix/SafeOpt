@@ -840,9 +840,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
             if is_expander:
                 # For expanders, the interest function is updated depending on
                 # the lower bounds
-                interest_function = np.ones(np.shape(values), dtype=np.float)
+                interest_function = (len(self.gps) *
+                                     np.ones(np.shape(values), dtype=np.float))
             elif is_maximizer:
-                interest_function = expit(upper_bound - self.best_lower_bound)
+                improvement = upper_bound - self.best_lower_bound
+                interest_function = expit(10 * improvement / self.scaling[0])
             else:
                 # unknown particle type (shouldn't happen)
                 raise AssertionError("Invalid swarm type")
@@ -879,7 +881,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
             if is_expander:
                 # check if the particles are expanders for the current gp
-                interest_function *= norm.pdf(lower_bound, loc=self.fmin[i])
+                interest_function *= norm.pdf(slack / scaling, scale=0.2)
 
         # this swarm type is only interested in knowing whether the particles
         # are safe.
