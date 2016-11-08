@@ -765,7 +765,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         velocities /= np.sqrt(self.gp.input_dim)
         return velocities
 
-    def _compute_penalty(self, slack, scaling):
+    def _compute_penalty(self, slack):
         """Return the penalty associated to a constraint violation.
 
         The penalty is a piecewise linear function that is nonzero only if the
@@ -776,9 +776,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         ----------
         slack: ndarray
             A vector corresponding to how much the constraint was violated.
-        scaling: float
-            A float corresponding to the maximal variance of the corresponding
-            GP.
         Returns
         -------
         penalties - ndarray
@@ -786,11 +783,11 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
         penalties = np.atleast_1d(np.clip(slack, None, 0))
 
-        penalties[(slack < 0) & (slack > -0.001 * scaling)] *= 2
-        penalties[(slack <= -0.001 * scaling) & (slack > -0.1 * scaling)] *= 5
-        penalties[(slack <= -0.1 * scaling) & (slack > -scaling)] *= 10
+        penalties[(slack < 0) & (slack > -0.001)] *= 2
+        penalties[(slack <= -0.001) & (slack > -0.1)] *= 5
+        penalties[(slack <= -0.1) & (slack > -1)] *= 10
 
-        slack_id = slack < -scaling
+        slack_id = slack < -1
         penalties[slack_id] = -300 * penalties[slack_id] ** 2
         return penalties
 
@@ -886,11 +883,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
             if is_safe:
                 continue
 
-            total_penalty += self._compute_penalty(slack, scaling)
+            # Normalize the slack somewhat
+            slack /= scaling
+
+            total_penalty += self._compute_penalty(slack)
 
             if is_expander:
                 # check if the particles are expanders for the current gp
-                interest_function *= norm.pdf(slack / scaling, scale=0.2)
+                interest_function *= norm.pdf(slack, scale=0.2)
 
         # this swarm type is only interested in knowing whether the particles
         # are safe.
