@@ -41,7 +41,7 @@ class SwarmOptimization(object):
     def __init__(self, swarm_size, velocity, fitness, bounds=None):
         super(SwarmOptimization, self).__init__()
 
-        self.c1 = self.c2 = 2
+        self.c1 = self.c2 = 1
         self.fitness = fitness
 
         self.bounds = bounds
@@ -111,8 +111,9 @@ class SwarmOptimization(object):
 
             # Update the velocities
             self.velocities *= inertia
-            self.velocities += (self.c1 * r1 * delta_self_best +
-                                self.c2 * r2 * delta_global_best)
+            self.velocities += ((self.c1 * r1 * delta_self_best +
+                                 self.c2 * r2 * delta_global_best) /
+                                self.velocity_scale)
 
             inertia += inertia_step
 
