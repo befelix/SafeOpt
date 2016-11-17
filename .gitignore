@@ -4,4 +4,6 @@ _build
 *.pyc
 *.swp
 docs/safeopt.*.rst
+.coverage
+covhtml
 

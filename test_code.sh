@@ -29,3 +29,7 @@ flake8 $module --filename=__init__.py,test*.py --ignore=F,E402,W503 --show-sourc
 echo "Running unit tests"
 nosetests --with-doctest $module
 
+# Running coverage
+echo "Running coverage..."
+coverage run -m $module.test
+coverage report -m
