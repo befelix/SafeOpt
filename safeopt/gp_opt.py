@@ -234,6 +234,34 @@ class SafeOpt(GaussianProcessOptimization):
         different input sizes. This should be set to the maximal variance of
         each kernel. You should probably leave this to "auto" unless your
         kernel is non-stationary.
+
+    Examples
+    --------
+    >>> from safeopt import SafeOpt
+    >>> from safeopt import linearly_spaced_combinations
+    >>> import GPy
+    >>> import numpy as np
+
+    Define a Gaussian process prior over the performance
+
+    >>> x = np.array([[0.]])
+    >>> y = np.array([[1.]])
+    >>> gp = GPy.models.GPRegression(x, y, noise_var=0.01**2)
+
+    >>> bounds = [[-1., 1.]]
+    >>> parameter_set = linearly_spaced_combinations([[-1., 1.]],
+    ...                                              num_samples=100)
+
+    Initialize the Bayesian optimization and get new parameters to evaluate
+
+    >>> opt = SafeOpt(gp, parameter_set, fmin=[0.])
+    >>> next_parameters = opt.optimize()
+
+    Add a new data point with the parameters and the performance to the GP. The
+    performance has normally be determined through an external function call.
+
+    >>> performance = np.array([[1.]])
+    >>> opt.add_new_data_point(next_parameters, performance)
     """
 
     def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
