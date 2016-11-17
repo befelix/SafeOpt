@@ -1,6 +1,7 @@
 # SafeOpt - Safe Bayesian Optimization
 
 [![Build Status](https://travis-ci.org/befelix/SafeOpt.svg?branch=master)](https://travis-ci.org/befelix/SafeOpt)
+[![Documentation Status](https://readthedocs.org/projects/safeopt/badge/?version=latest)](http://safeopt.readthedocs.io/en/latest/?badge=latest)
 
 This code implements an adapted version of the safe, Bayesian optimization algorithm, SafeOpt [1,2]. It also provides an implementation for the original algorithm in [3]. The code can be used to automatically optimize a performance measures subject to a safety constraint by adapting parameters. The prefered way of citing this code is by referring to [1, 2].
 
