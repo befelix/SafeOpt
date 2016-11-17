@@ -657,15 +657,17 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     >>> x = np.array([[0.]])
     >>> y = np.array([[1.]])
-    >>> gp = GPy.models.GPRegression(1, x, y)
+    >>> gp = GPy.models.GPRegression(x, y, noise_var=0.01**2)
 
     Initialize the Bayesian optimization and get new parameters to evaluate
 
     >>> opt = SafeOptSwarm(gp, fmin=[0.], bounds=[[-1., 1.]])
     >>> next_parameters = opt.optimize()
 
-    Add a new data point with the parameters and the performance to the GP.
+    Add a new data point with the parameters and the performance to the GP. The
+    performance has normally be determined through an external function call.
 
+    >>> performance = np.array([[1.]])
     >>> opt.add_new_data_point(next_parameters, performance)
 
     """
