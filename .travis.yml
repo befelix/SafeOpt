@@ -24,7 +24,7 @@ install:
 
 # Run tests
 script:
-  - flake8 safeopt --exclude test*.py,__init__.py --ignore=E402,W503
-  - flake8 safeopt --filename=__init__.py,test*.py --ignore=F,E402,W503
+  - flake8 safeopt --exclude test*.py,__init__.py --ignore=E402,W503 --show-source
+  - flake8 safeopt --filename=__init__.py,test*.py --ignore=F,E402,W503 --show-source
   - nosetests --with-doctest safeopt
 
