@@ -7,7 +7,8 @@ Authors: - Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
-from .utilities import *
+from .utilities import (plot_2d_gp, plot_3d_gp, plot_contour_gp,
+                        linearly_spaced_combinations)
 from .swarm import SwarmOptimization
 
 import sys
@@ -73,7 +74,7 @@ class GaussianProcessOptimization(object):
 
         if scaling == 'auto':
             dummy_point = np.zeros((1, self.gps[0].input_dim))
-            self.scaling = [gp.kern.Kdiag(dummy_point)[0] for gp in self.gps]
+            self.scaling = [gpm.kern.Kdiag(dummy_point)[0] for gpm in self.gps]
             self.scaling = np.sqrt(np.asarray(self.scaling))
         else:
             self.scaling = np.asarray(scaling)

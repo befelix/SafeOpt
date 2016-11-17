@@ -16,9 +16,12 @@ get_script_dir () {
 # Change to script root
 cd $(get_script_dir)
 
-# Run PEP8
+# Run style tests
 echo "Running style tests"
-find safeopt -name \*.py -exec pep8 --ignore=E402 {} +
+flake8 safeopt --exclude test*.py,__init__.py --ignore=E402,W503
+
+# Ignore import errors for __init__ and tests
+flake8 safeopt --filename=__init__.py,test*.py --ignore=F,E402,W503
 
 # Run unit tests
 echo "Running unit tests"
