@@ -50,8 +50,9 @@ class GaussianProcessOptimization(object):
         This ignores the scaling factor.
     scaling: list of floats or "auto"
         A list used to scale the GP uncertainties to compensate for
-        different input sizes. This should be set to the maximal variance of each kernel.
-        You should probably leave this to "auto" unless your kernel is non stationnary
+        different input sizes. This should be set to the maximal variance of
+        each kernel. You should probably leave this to "auto" unless your
+        kernel is non-stationary.
     """
 
     def __init__(self, gp, beta, num_contexts, threshold=0, scaling='auto'):
@@ -702,13 +703,13 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
         swarm_types = ['greedy', 'maximizers', 'expanders']
 
-        self.swarms = {swarm_type: SwarmOptimization(
-                                       swarm_size,
-                                       self.optimal_velocities,
-                                       partial(
-                                           self._compute_particle_fitness,
-                                           swarm_type),
-                                       bounds=self.bounds)
+        self.swarms = {swarm_type:
+                       SwarmOptimization(
+                           swarm_size,
+                           self.optimal_velocities,
+                           partial(self._compute_particle_fitness,
+                                   swarm_type),
+                           bounds=self.bounds)
                        for swarm_type in swarm_types}
 
     def optimize_particle_velocity(self):
