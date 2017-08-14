@@ -6,18 +6,23 @@ RUN apt-get update --quiet \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
+ARG PYTHON="2.7"
+
 # Update conda, install packages, and clean up
 RUN conda update conda --yes --quiet \
-  && conda install python=2.7 pip numpy scipy --yes --quiet \
+  && conda create -n safeopt python=$PYTHON pip numpy scipy --yes --quiet \
   && conda clean --yes --all \
   && hash -r
+
+# Source the anaconda environment
+ENV PATH /opt/conda/envs/safeopt/bin:$PATH
 
 # Get the requirements files (seperate from the main body)
 COPY requirements.txt requirements.dev.txt /code/
 
 # Install requirements and clean up
-RUN pip --no-cache-dir install -r code/requirements.txt \
-  && pip --no-cache-dir install -r code/requirements.dev.txt \
+RUN pip --no-cache-dir install -r /code/requirements.txt \
+  && pip --no-cache-dir install -r /code/requirements.dev.txt \
   && rm -rf /root/.cache
 
 # Copy the main code

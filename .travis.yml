@@ -5,14 +5,15 @@ services:
   - docker
 
 env:
-  - PYTHON=python2
+  - PYTHON=2.7
+  - PYTHON=3.5
 
 # Setup anaconda
 install:
   #  Disabled since docker pull does not affect cache
   #  Fixed in Docker 1.13 with --cache-from
   #  - docker pull befelix/lyapunov-learning-private:${PYTHON} || true
-  - docker build -f Dockerfile.${PYTHON} -t test-image .
+  - docker build -f Dockerfile --build-arg PYTHON=${PYTHON} -t test-image .
   - docker ps -a
 
 # Run tests
