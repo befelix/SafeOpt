@@ -8,4 +8,6 @@ docs/safeopt.*.rst
 covhtml
 safeopt.egg-info
 htmlcov
+build
+dist
 

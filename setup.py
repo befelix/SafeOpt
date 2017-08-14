@@ -1,9 +1,13 @@
-from distutils.core import setup
+from setuptools import setup
+from os import path
 
-with open('README.md', 'r') as f:
+
+current_dir = path.abspath(path.dirname(__file__))
+
+with open(path.join(current_dir, 'README.md'), 'r') as f:
     long_description = f.read()
 
-with open('requirements.txt', 'r') as f:
+with open(path.join(current_dir, 'requirements.txt'), 'r') as f:
     install_requires = f.read().split('\n')
 
 setup(
@@ -17,4 +21,13 @@ setup(
     description='Safe Bayesian optimization',
     long_description=long_description,
     install_requires=install_requires,
+    keywords='Bayesian optimization, Safety',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Researchers',
+        'License :: MIT License',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5'],
 )
