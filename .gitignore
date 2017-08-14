@@ -6,4 +6,6 @@ _build
 docs/safeopt.*.rst
 .coverage
 covhtml
+safeopt.egg-info
+htmlcov
 

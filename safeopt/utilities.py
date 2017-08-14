@@ -1,9 +1,9 @@
 """
-Utilities to sample GP functions and to create linear combinations of
-differently discretized data.
+Utilities for the safeopt library (e.g., sampling).
 
 Author: Felix Berkenkamp (befelix at inf dot ethz dot ch)
 """
+
 from __future__ import print_function, absolute_import, division
 
 from collections import Sequence            # isinstance(...,Sequence)
@@ -217,7 +217,7 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
 def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                fixed_inputs=None, beta=3, **kwargs):
         """
-        Plot a 3D gp with uncertainty
+        Plot a 3D gp with uncertainty.
 
         Parameters
         ----------
@@ -292,7 +292,7 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
 def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None,
                     colorbar=True, **kwargs):
         """
-        Plot a 3D gp with uncertainty
+        Plot a 3D gp with uncertainty.
 
         Parameters
         ----------

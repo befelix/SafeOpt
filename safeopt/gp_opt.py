@@ -33,8 +33,8 @@ class GaussianProcessOptimization(object):
 
     Handles common functionality.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     gp: GPy Gaussian process
     parameter_set: 2d-array
         List of parameters
@@ -54,6 +54,7 @@ class GaussianProcessOptimization(object):
     """
 
     def __init__(self, gp, beta, num_contexts, threshold=0, scaling='auto'):
+        """Initialization, see `GaussianProcessOptimization`."""
         super(GaussianProcessOptimization, self).__init__()
 
         if isinstance(gp, list):
@@ -185,7 +186,8 @@ class GaussianProcessOptimization(object):
     def remove_last_data_point(self, gp=None):
         """Remove the data point that was last added to the GP.
 
-        Parameters:
+        Parameters
+        ----------
             gp: Instance of GPy.models.GPRegression
                 The gp that the last data point should be removed from
         """
@@ -197,7 +199,7 @@ class GaussianProcessOptimization(object):
 
 
 class SafeOpt(GaussianProcessOptimization):
-    """A class for Safe Bayesian Optimization
+    """A class for Safe Bayesian Optimization.
 
     This class implements the `SafeOpt` algorithm. It uses a Gaussian
     process model in order to determine parameter combinations that are safe
@@ -264,7 +266,7 @@ class SafeOpt(GaussianProcessOptimization):
 
     def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
                  num_contexts=0, threshold=0, scaling='auto'):
-
+        """Initialization, see `SafeOpt`."""
         super(SafeOpt, self).__init__(gp, beta, num_contexts, threshold,
                                       scaling)
 
@@ -344,7 +346,7 @@ class SafeOpt(GaussianProcessOptimization):
 
     @property
     def context_fixed_inputs(self):
-        """The fixed inputs for the current context"""
+        """Return the fixed inputs for the current context."""
         n = self.gp.input_dim - 1
         nc = self.num_contexts
         if nc > 0:
@@ -537,8 +539,7 @@ class SafeOpt(GaussianProcessOptimization):
 
     def get_new_query_point(self, ucb=False):
         """
-        Computes a new point at which to evaluate the function, based on the
-        sets M and G.
+        Compute a new point at which to evaluate the function.
 
         Parameters
         ----------
@@ -701,6 +702,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto', threshold=0,
                  swarm_size=20):
+        """Initialization, see `SafeOptSwarm`."""
         super(SafeOptSwarm, self).__init__(gp, beta,
                                            num_contexts=0,
                                            threshold=threshold,
@@ -805,6 +807,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         ----------
         slack: ndarray
             A vector corresponding to how much the constraint was violated.
+
         Returns
         -------
         penalties - ndarray
@@ -936,8 +939,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     def get_new_query_point(self, swarm_type):
         """
-        Computes a new point at which to evaluate the function, depending
-        on the swarm type.
+        Compute a new point at which to evaluate the function.
 
         This function relies on a Particle Swarm Optimization (PSO) to find the
         optimum of the objective function (which depends on the swarm type).
@@ -961,7 +963,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         max_std_dev: float
             The current standard deviation in the point to be evaluated.
         """
-
         beta = self.beta(self.t)
         safe_size, input_dim = self.S.shape
 
@@ -1063,7 +1064,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
         x: np.array
             The next parameters that should be evaluated.
         """
-
         # compute estimate of the lower bound
         self.greedy, self.best_lower_bound = self.get_new_query_point('greedy')
 
@@ -1097,9 +1097,6 @@ class SafeOptSwarm(GaussianProcessOptimization):
     def get_maximum(self):
         """
         Return the current estimate for the maximum.
-
-        Parameters
-        ----------
 
         Returns
         -------

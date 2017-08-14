@@ -32,7 +32,9 @@ class SwarmOptimization(object):
         A list of constraints to which particle exploration is limited. Of the
         form [(x1_min, x1_max), (x2_min, x2_max)...].
     """
+
     def __init__(self, swarm_size, velocity, fitness, bounds=None):
+        """Initialization, see `SwarmOptimization`."""
         super(SwarmOptimization, self).__init__()
 
         self.c1 = self.c2 = 1
@@ -58,7 +60,7 @@ class SwarmOptimization(object):
 
     @property
     def max_velocity(self):
-        """The maximum allowed velocity of particles."""
+        """Return the maximum allowed velocity of particles."""
         return 10 * self.velocity_scale
 
     def init_swarm(self, positions):
