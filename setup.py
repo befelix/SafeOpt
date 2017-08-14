@@ -1,5 +1,11 @@
 from distutils.core import setup
 
+with open('README.md', 'r') as f:
+    long_description = f.read()
+
+with open('requirements.txt', 'r') as f:
+    install_requires = f.read().split('\n')
+
 setup(
     name='safeopt',
     version='0.1',
@@ -9,11 +15,6 @@ setup(
     url='https://github.com/befelix/SafeOpt',
     license='LICENSE.txt',
     description='Safe Bayesian optimization',
-    long_description=open('README.md').read(),
-    install_requires=[
-        'GPy >= 0.6.0',
-        'numpy >= 1.7',
-        'scipy >= 0.12',
-	'matplotlib >= 1.3',
-    ],
+    long_description=long_description,
+    install_requires=install_requires,
 )
