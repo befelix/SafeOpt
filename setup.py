@@ -20,6 +20,7 @@ setup(
     license='MIT',
     description='Safe Bayesian optimization',
     long_description=long_description,
+    setup_requires='numpy',
     install_requires=install_requires,
     keywords='Bayesian optimization, Safety',
     classifiers=[
