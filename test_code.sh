@@ -30,11 +30,11 @@ flake8 $module --filename=__init__.py,test*.py --ignore=F,E402,W503 --show-sourc
 
 echo -e "${GREEN}Testing docstring conventions.${NC}"
 # Test docstring conventions
-# pydocstyle $module --convention=numpy
+pydocstyle $module --convention=numpy
 
 # Run unit tests
 echo -e "${GREEN}Running unit tests.${NC}"
-pytest --doctest-modules --cov --cov-fail-under=80 $module
+pytest --doctest-modules --cov --cov-fail-under=50 $module
 
 # Export html
 coverage html

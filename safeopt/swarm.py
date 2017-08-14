@@ -7,16 +7,11 @@ Authors: - Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
-import sys
 import numpy as np
+from builtins import range
 
 
-__all__ = []
-
-
-# For python 2 compatibility
-if sys.version_info[0] < 3:
-    range = xrange
+__all__ = ['SwarmOptimization']
 
 
 class SwarmOptimization(object):
@@ -98,7 +93,7 @@ class SwarmOptimization(object):
         inertia = self.initial_inertia
         inertia_step = (self.final_inertia - self.initial_inertia) / max_iter
 
-        for i in range(max_iter):
+        for _ in range(max_iter):
             # update velocities
             delta_global_best = self.global_best - self.positions
             delta_self_best = self.best_positions - self.positions

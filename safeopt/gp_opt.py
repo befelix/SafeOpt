@@ -7,27 +7,24 @@ Authors: - Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
+from collections import Sequence
+from functools import partial
+
+import numpy as np
+from scipy.spatial.distance import cdist
+from scipy.special import expit
+from scipy.stats import norm
+from builtins import range
+
 from .utilities import (plot_2d_gp, plot_3d_gp, plot_contour_gp,
                         linearly_spaced_combinations)
 from .swarm import SwarmOptimization
 
-import sys
-import numpy as np                          # ...
-from collections import Sequence            # isinstance(...,Sequence)
-from scipy.spatial.distance import cdist    # Efficient distance computation
-from scipy.special import expit
-from scipy.stats import norm
-from functools import partial
 
 import logging
 
 
 __all__ = ['SafeOpt', 'SafeOptSwarm']
-
-
-# For python 2 compatibility
-if sys.version_info[0] < 3:
-    range = xrange
 
 
 class GaussianProcessOptimization(object):
