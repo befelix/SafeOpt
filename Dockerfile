@@ -6,7 +6,7 @@ RUN apt-get update --quiet \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-ARG PYTHON="2.7"
+ARG PYTHON="3.5"
 
 # Update conda, install packages, and clean up
 RUN conda update conda --yes --quiet \
