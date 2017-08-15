@@ -49,35 +49,8 @@ Usage
 
 *The easiest way to get familiar with the library is to run the interactive example ipython notebooks!*
 
-Make sure that the ``ipywidgets`` module is installed.
+Make sure that the ``ipywidgets`` module is installed. All functions and classes are documented on `Read The Docs <http://safeopt.readthedocs.org/en/latest/>`_.
 
-All functions and classes are documented on `Read The Docs <http://safeopt.readthedocs.org/en/latest/>`_.
-
-Details
--------
-
-The algorithm is implemented in the ``gp_opt.py`` file. Next to some helper
-functions, the class ``SafeOpt`` implements the core algorithm. It can be
-initialized as
-
-``SafeOpt(gp, parameter_set, fmin, lipschitz=None, beta=3.0, num_contexts=0, threshold=0, scaling=None)``
-
-* ``gp`` is a Gaussian process from the ``GPy`` toolbox at `<https://github.com/SheffieldML/GPy>`_. This Gaussian process should already include the points of the initial, safe set. For multiple constraints, this is a list of independent GPs instead.
-* The ``parameter_set`` is a 2d-array of sampling locations for the GP, which is used to compute new evaluation points. It can, for example, be create with the ```linearly_spaced_combinations``` function in the safeopt library.
-* Lastly, fmin defines the safe lower bounds on the function values.
-
-The class several optional arguments:
-
-* The `lipschitz` argument can be used to specify the Lipschitz constant to determine the set of expanders. If it is not None, the algorithm in [1] is used to determine expanders directly with the confidence itnervals.
-* The confidence interval that is used can be specified by `beta`, which can be a constant or a function of the iteration number.
-* ``num_contexts`` can be used to specify which of the parameters are contexts that we do not optimize over, see [2].
-* Potential expanders that have confidence intervals smaller than the ``threshold`` value are not considered by the algorithm. This is useful to avoid unecessary exploration (Typical values are the noise standard deviation).
-* `scaling` is used when multiple constraints are specified, in order to account for different magnitudes of functions.
-
-Once the class is initialized, its `optimize` method can be used to determine the next parameters at which to evaluate the objective function.
-The resulting data point can be added with the ``add_new_data_point` method. The `plot`` method illustrates the Gaussian process intervals in 1 or 2 dimensions.
-
-For a more detailed documentation see the class/method docstrings within the source code.
 
 License
 -------
