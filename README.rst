@@ -18,24 +18,20 @@ The prefered way of citing this code is by referring to [1] or [2].
   :alt: Youtube video
 
 .. [1] F. Berkenkamp, A. P. Schoellig, A. Krause,
-  "Safe Controller Optimization for Quadrotors with Gaussian Processes"
-  in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, pp. 491-496,
-  `arXiv:1509.01066 [cs.RO] <http://arxiv.org/abs/1509.01066>`_
+  `Safe Controller Optimization for Quadrotors with Gaussian Processes <http://arxiv.org/abs/1509.01066>`_
+  in Proc. of the IEEE International Conference on Robotics and Automation (ICRA), 2016, pp. 491-496.
 
 .. [2] F. Berkenkamp, A. Krause, A. P. Schoellig,
-  "Bayesian Optimization with Safety Constraints: Safe and Automatic Parameter Tuning in Robotics",
-  ArXiv, 2016,
-  `arXiv:1602.04450 [cs.RO] <http://arxiv.org/abs/1602.04450>`_
+  `Bayesian Optimization with Safety Constraints: Safe and Automatic Parameter Tuning in Robotics  <http://arxiv.org/abs/1602.04450>`_,
+  ArXiv, 2016, arXiv:1602.04450 [cs.RO].
 
 .. [3] Rikky R.P.R. Duivenvoorden, Felix Berkenkamp, Nicolas Carion, Andreas Krause, Angela P. Schoellig,
-  "Constrained Bayesian optimization with Particle Swarms for Safe Adaptive Controller Tuning",
-  in Proc. of the IFAC (International Federation of Automatic Control) World Congress, 2017,
-  `[PDF] <http://www.dynsyslab.org/wp-content/papercite-data/pdf/duivenvoorden-ifac17.pdf>`_
+  `Constrained Bayesian optimization with Particle Swarms for Safe Adaptive Controller Tuning <http://www.dynsyslab.org/wp-content/papercite-data/pdf/duivenvoorden-ifac17.pdf>`_,
+  in Proc. of the IFAC (International Federation of Automatic Control) World Congress, 2017.
 
 .. [4] Y. Sui, A. Gotovos, J. W. Burdick, and A. Krause,
-  “Safe exploration for optimization with Gaussian processes”
+  `Safe exploration for optimization with Gaussian processes <https://las.inf.ethz.ch/files/sui15icml-long.pdf>`_
   in Proc. of the International Conference on Machine Learning (ICML), 2015, pp. 997–1005.
-  `[PDF] <https://las.inf.ethz.ch/files/sui15icml-long.pdf>`_
 
 
 Installation

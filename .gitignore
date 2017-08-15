@@ -10,4 +10,5 @@ safeopt.egg-info
 htmlcov
 build
 dist
+.eggs
 
