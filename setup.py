@@ -12,7 +12,7 @@ with open(path.join(current_dir, 'requirements.txt'), 'r') as f:
 
 setup(
     name='safeopt',
-    version='0.1.1',
+    version='0.12',
     author='Felix Berkenkamp',
     author_email='befelix@inf.ethz.ch',
     packages=['safeopt'],
