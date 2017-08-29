@@ -129,22 +129,30 @@ class GaussianProcessOptimization(object):
         if not isinstance(n_samples, Sequence):
             n_samples = [n_samples] * len(self.bounds)
 
+        axes = []
         if self.gp.input_dim - self.num_contexts == 1:
             # 2D plots with uncertainty
-            plot_2d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
+            for gp, fmin in zip(self.gps, self.fmin):
+                if fmin == -np.inf:
+                    fmin = None
+                ax = plot_2d_gp(gp, inputs, figure=figure, axis=axis,
+                                fmin=fmin, **kwargs)
+                axes.append(ax)
         else:
             if plot_3d:
-                plot_3d_gp(self.gp, inputs, figure=figure, axis=axis, **kwargs)
+                for gp in self.gps:
+                    plot_3d_gp(gp, inputs, figure=figure, axis=axis, **kwargs)
             else:
-                plot_contour_gp(self.gp,
-                                [np.linspace(self.bounds[0][0],
-                                             self.bounds[0][1],
-                                             n_samples[0]),
-                                 np.linspace(self.bounds[1][0],
-                                             self.bounds[1][1],
-                                             n_samples[1])],
-                                figure=figure,
-                                axis=axis)
+                for gp in self.gps:
+                    plot_contour_gp(gp,
+                                    [np.linspace(self.bounds[0][0],
+                                                 self.bounds[0][1],
+                                                 n_samples[0]),
+                                     np.linspace(self.bounds[1][0],
+                                                 self.bounds[1][1],
+                                                 n_samples[1])],
+                                    figure=figure,
+                                    axis=axis)
 
     def add_new_data_point(self, x, y, context=None, gp=None):
         """
@@ -176,7 +184,7 @@ class GaussianProcessOptimization(object):
                 if np.any(is_not_nan):
                     # Add data to GP
                     gp.set_XY(np.vstack([gp.X, x[is_not_nan, :]]),
-                              np.vstack([gp.Y, y[is_not_nan, i]]))
+                              np.vstack([gp.Y, y[is_not_nan, [i]]]))
         else:
             gp.set_XY(np.vstack([gp.X, x]),
                       np.vstack([gp.Y, y]))

@@ -144,7 +144,7 @@ def sample_gp_function(kernel, bounds, noise_var, num_samples,
 
 
 def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
-               fixed_inputs=None, beta=3, **kwargs):
+               fixed_inputs=None, beta=3, fmin=None, **kwargs):
         """
         Plot a 2D GP with uncertainty.
 
@@ -166,6 +166,12 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
             it's not fixed, but should not be a plotted axis either
         beta: float
             The confidence interval used
+        fmin : float
+            The safety threshold value.
+
+        Returns
+        -------
+        axis
         """
         if fixed_inputs is None:
             if gp.kern.input_dim > 1:
@@ -208,10 +214,17 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                           alpha=0.3)
 
         axis.plot(inputs[:, unfixed[0]], output, **kwargs)
-        axis.scatter(gp.X[:, unfixed[0]], gp.Y[:, 0], s=20 * ms, marker='x',
-                     linewidths=mew, color=point_color)
+        axis.scatter(gp.X[:-1, unfixed[0]], gp.Y[:-1, 0], s=20 * ms,
+                     marker='x', linewidths=mew, color=point_color)
+        axis.scatter(gp.X[-1, unfixed[0]], gp.Y[-1, 0], s=20 * ms,
+                     marker='x', linewidths=mew, color='r')
         axis.set_xlim([np.min(inputs[:, unfixed[0]]),
                        np.max(inputs[:, unfixed[0]])])
+
+        if fmin is not None:
+            axis.plot(inputs[[0, -1], unfixed[0]], [fmin, fmin], 'k--')
+
+        return axis
 
 
 def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
@@ -275,10 +288,14 @@ def plot_3d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                                  mean[:, 0],
                                  cmap=cm.jet, linewidth=0.2, alpha=0.5)
 
-        data = axis.plot(gp.X[:, unfixed[0]],
-                         gp.X[:, unfixed[1]],
-                         gp.Y[:, 0],
+        data = axis.plot(gp.X[:-1, unfixed[0]],
+                         gp.X[:-1, unfixed[1]],
+                         gp.Y[:-1, 0],
                          'o')
+        axis.plot(gp.X[-1, unfixed[0]],
+                  gp.X[-1, unfixed[1]],
+                  gp.Y[-1, 0],
+                  'ro')
 
         axis.set_xlim([np.min(inputs[:, unfixed[0]]),
                        np.max(inputs[:, unfixed[0]])])
@@ -352,7 +369,8 @@ def plot_contour_gp(gp, inputs, predictions=None, figure=None, axis=None,
         else:
             c = None
 
-        data = axis.plot(gp.X[:, slices[0]], gp.X[:, slices[1]], 'ob')
+        data = axis.plot(gp.X[:-1, slices[0]], gp.X[:-1, slices[1]], 'ob')
+        axis.plot(gp.X[-1, slices[0]], gp.X[-1, slices[1]], 'or')
 
         axis.set_xlim([np.min(inputs[slices[0]]),
                        np.max(inputs[slices[0]])])
