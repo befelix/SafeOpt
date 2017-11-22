@@ -2,7 +2,7 @@
 Classes that implement SafeOpt.
 
 Authors: - Felix Berkenkamp (befelix at inf dot ethz dot ch)
-         - Nicolas Carion (nicolas dot carion at gmail dot com)
+         - Nicolas Carion (carion dot nicolas at gmail dot com)
 """
 
 from __future__ import print_function, absolute_import, division
