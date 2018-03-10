@@ -29,6 +29,7 @@ class TestGPs(object):
         gp1, gp2 = gps
 
         opt = GaussianProcessOptimization(gp1,
+                                          fmin=0,
                                           beta=2,
                                           num_contexts=1,
                                           threshold=0,
@@ -36,6 +37,7 @@ class TestGPs(object):
         assert opt.beta(0) == 2
 
         opt = GaussianProcessOptimization(gp1,
+                                          fmin=[0],
                                           beta=lambda x: 5,
                                           num_contexts=1,
                                           threshold=0,
@@ -48,6 +50,7 @@ class TestGPs(object):
         gp1, gp2 = gps
 
         opt = GaussianProcessOptimization([gp1, gp2],
+                                          fmin=0,
                                           beta=2,
                                           num_contexts=1,
                                           threshold=0,
@@ -64,6 +67,7 @@ class TestGPs(object):
                       scaling=[5])
 
         opt = GaussianProcessOptimization([gp1, gp2],
+                                          fmin=[1, 0],
                                           beta=2,
                                           num_contexts=1,
                                           threshold=0,
@@ -76,7 +80,7 @@ class TestGPs(object):
 
         # Test simple 1D case
         gp1.set_XY(np.array([[0.]]), np.array([[1.]]))
-        opt = GaussianProcessOptimization(gp1)
+        opt = GaussianProcessOptimization(gp1, 0)
         opt.add_new_data_point(2, 3)
 
         x, y = opt.data
@@ -87,7 +91,7 @@ class TestGPs(object):
         gp1.set_XY(np.array([[0.]]), np.array([[1.]]))
         gp2.set_XY(np.array([[0.]]), np.array([[11.]]))
 
-        opt = GaussianProcessOptimization([gp1, gp2])
+        opt = GaussianProcessOptimization([gp1, gp2], [0, 1])
         opt.add_new_data_point(2, [2, 3])
         x, y = opt.data
         assert_allclose(x, np.array([[0], [2]]))
@@ -125,7 +129,9 @@ class TestGPs(object):
         gp2 = GPy.models.GPRegression(np.array([[0, 0]]), np.array([[6]]),
                                       kernel=kernel2)
 
-        opt = GaussianProcessOptimization([gp1, gp2], num_contexts=1)
+        opt = GaussianProcessOptimization([gp1, gp2],
+                                          fmin=[0, 0],
+                                          num_contexts=1)
         opt.add_new_data_point(1, [3, 4], context=2)
 
         assert_allclose(opt.x, np.array([[0, 0], [1, 2]]))

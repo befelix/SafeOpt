@@ -11,4 +11,5 @@ htmlcov
 build
 dist
 .eggs
+.cache
 

@@ -36,8 +36,10 @@ class GaussianProcessOptimization(object):
     Parameters
     ----------
     gp: GPy Gaussian process
-    parameter_set: 2d-array
-        List of parameters
+    fmin : float or list of floats
+        Safety threshold for the function value. If multiple safety constraints
+        are used this can also be a list of floats (the first one is always
+        the one for the values, can be set to None if not wanted).
     beta: float or callable
         A constant or a function of the time step that scales the confidence
         interval of the acquisition function.
@@ -53,7 +55,7 @@ class GaussianProcessOptimization(object):
         kernel is non-stationary.
     """
 
-    def __init__(self, gp, beta=2, num_contexts=0, threshold=0,
+    def __init__(self, gp, fmin, beta=2, num_contexts=0, threshold=0,
                  scaling='auto'):
         """Initialization, see `GaussianProcessOptimization`."""
         super(GaussianProcessOptimization, self).__init__()
@@ -63,6 +65,11 @@ class GaussianProcessOptimization(object):
         else:
             self.gps = [gp]
         self.gp = self.gps[0]
+
+        self.fmin = fmin
+        if not isinstance(self.fmin, list):
+            self.fmin = [self.fmin] * len(self.gps)
+        self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
 
         if hasattr(beta, '__call__'):
             # Beta is a function of t
@@ -337,11 +344,15 @@ class SafeOpt(GaussianProcessOptimization):
     >>> opt.add_new_data_point(next_parameters, performance)
     """
 
-    def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=3.0,
+    def __init__(self, gp, parameter_set, fmin, lipschitz=None, beta=2,
                  num_contexts=0, threshold=0, scaling='auto'):
         """Initialization, see `SafeOpt`."""
-        super(SafeOpt, self).__init__(gp, beta, num_contexts, threshold,
-                                      scaling)
+        super(SafeOpt, self).__init__(gp,
+                                      fmin=fmin,
+                                      beta=beta,
+                                      num_contexts=num_contexts,
+                                      threshold=threshold,
+                                      scaling=scaling)
 
         if self.num_contexts > 0:
             context_shape = (parameter_set.shape[0], self.num_contexts)
@@ -352,14 +363,7 @@ class SafeOpt(GaussianProcessOptimization):
         else:
             self.inputs = self.parameter_set = parameter_set
 
-        self.fmin = fmin
         self.liptschitz = lipschitz
-
-        if not isinstance(self.fmin, list):
-            self.fmin = [self.fmin] * len(self.gps)
-            if len(self.gps) > 1:
-                self.fmin[0] = None
-        self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
 
         if self.liptschitz is not None:
             if not isinstance(self.liptschitz, list):
@@ -773,18 +777,16 @@ class SafeOptSwarm(GaussianProcessOptimization):
 
     """
 
-    def __init__(self, gp, fmin, bounds, beta=3.0, scaling='auto', threshold=0,
+    def __init__(self, gp, fmin, bounds, beta=2, scaling='auto', threshold=0,
                  swarm_size=20):
         """Initialization, see `SafeOptSwarm`."""
-        super(SafeOptSwarm, self).__init__(gp, beta,
+        super(SafeOptSwarm, self).__init__(gp,
+                                           fmin=fmin,
+                                           beta=beta,
                                            num_contexts=0,
                                            threshold=threshold,
                                            scaling=scaling)
 
-        self.fmin = fmin
-        if not isinstance(self.fmin, list):
-            self.fmin = [self.fmin] * len(self.gps)
-        self.fmin = np.atleast_1d(np.asarray(self.fmin).squeeze())
         # Safe set
         self.S = np.asarray(self.gps[0].X)
 
