@@ -53,7 +53,8 @@ class GaussianProcessOptimization(object):
         kernel is non-stationary.
     """
 
-    def __init__(self, gp, beta, num_contexts, threshold=0, scaling='auto'):
+    def __init__(self, gp, beta=2, num_contexts=0, threshold=0,
+                 scaling='auto'):
         """Initialization, see `GaussianProcessOptimization`."""
         super(GaussianProcessOptimization, self).__init__()
 
@@ -86,18 +87,40 @@ class GaussianProcessOptimization(object):
         self.num_samples = 0
         self.num_contexts = num_contexts
 
-        # Time step
-        self.t = self.gp.X.shape[0]
+        self._x = None
+        self._y = None
+        self._get_initial_xy()
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
 
     @property
     def data(self):
         """Return the data within the GP models."""
-        x = self.gp.X.copy()
-        y = np.empty((len(x), len(self.gps)), dtype=np.float)
+        return self._x, self._y
 
-        for i, gp in enumerate(self.gps):
-            y[:, i] = gp.Y.squeeze()
-        return x, y
+    @property
+    def t(self):
+        """Return the time step (number of measurements)."""
+        return self._x.shape[0]
+
+    def _get_initial_xy(self):
+        """Get the initial x/y data from the GPs."""
+        self._x = self.gp.X
+        y = [self.gp.Y]
+
+        for gp in self.gps[1:]:
+            if np.allclose(self._x, gp.X):
+                y.append(gp.Y)
+            else:
+                raise NotImplemented('The GPs have different measurements.')
+
+        self._y = np.concatenate(y, axis=1)
 
     def plot(self, n_samples, axis=None, figure=None, plot_3d=False,
              **kwargs):
@@ -154,9 +177,31 @@ class GaussianProcessOptimization(object):
                                     figure=figure,
                                     axis=axis)
 
-    def add_new_data_point(self, x, y, context=None, gp=None):
+    def _add_context(self, x, context):
+        """Add the context to a vector.
+
+        Parameters
+        ----------
+        x : ndarray
+        context : ndarray
+
+        Returns
+        -------
+        x_extended : ndarray
         """
-        Add a new function observation to the GPs.
+        context = np.atleast_2d(context)
+        num_contexts = context.shape[1]
+
+        x2 = np.empty((x.shape[0], x.shape[1] + num_contexts), dtype=float)
+        x2[:, :x.shape[1]] = x
+        x2[:, x.shape[1]:] = context
+        return x2
+
+    def _add_data_point(self, gp, x, y, context=None):
+        """Add a data point to a particular GP.
+
+        This should only be called on its own if you know what you're doing.
+        This does not update the global data stores self.x and self.y.
 
         Parameters
         ----------
@@ -166,44 +211,64 @@ class GaussianProcessOptimization(object):
             The context(s) used for the data points
         gp: instance of GPy.model.GPRegression
             If specified, determines the GP to which we add the data point
+            to. Note that this should only be used if that data point is going
+            to be removed again.
+        """
+        if context is not None:
+            x = self._add_context(x, context)
+
+        gp.set_XY(np.vstack([gp.X, x]),
+                  np.vstack([gp.Y, y]))
+
+    def add_new_data_point(self, x, y, context=None):
+        """
+        Add a new function observation to the GPs.
+
+        Parameters
+        ----------
+        x: 2d-array
+        y: 2d-array
+        context: array_like
+            The context(s) used for the data points.
         """
         x = np.atleast_2d(x)
         y = np.atleast_2d(y)
 
         if self.num_contexts:
-            context = np.asarray(context)
-            x2 = np.empty((x.shape[0], x.shape[1] +
-                           self.num_contexts), dtype=np.float)
-            x2[:, :x.shape[1]] = x
-            x2[:, x.shape[1]:] = context
-            x = x2
+            x = self._add_context(x, context)
 
-        if gp is None:
-            for i, gp in enumerate(self.gps):
-                is_not_nan = ~np.isnan(y[:, i])
-                if np.any(is_not_nan):
-                    # Add data to GP
-                    gp.set_XY(np.vstack([gp.X, x[is_not_nan, :]]),
-                              np.vstack([gp.Y, y[is_not_nan, [i]]]))
-        else:
-            gp.set_XY(np.vstack([gp.X, x]),
-                      np.vstack([gp.Y, y]))
+        for i, gp in enumerate(self.gps):
+            not_nan = ~np.isnan(y[:, i])
+            if np.any(not_nan):
+                # Add data to GP (context already included in x)
+                self._add_data_point(gp, x[not_nan, :], y[not_nan, [i]])
 
-        self.t += y.shape[1]
+        # Update global data stores
+        self._x = np.concatenate((self._x, x), axis=0)
+        self._y = np.concatenate((self._y, y), axis=0)
 
-    def remove_last_data_point(self, gp=None):
-        """Remove the data point that was last added to the GP.
+    def _remove_last_data_point(self, gp):
+        """Remove the last data point of a specific GP.
+
+        This does not update global data stores, self.x and self.y.
 
         Parameters
         ----------
             gp: Instance of GPy.models.GPRegression
                 The gp that the last data point should be removed from
         """
-        if gp is None:
-            for gp in self.gps:
+        gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
+
+    def remove_last_data_point(self):
+        """Remove the data point that was last added to the GP."""
+        last_y = self._y[-1]
+
+        for gp, yi in zip(self.gps, last_y):
+            if not np.isnan(yi):
                 gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
-        else:
-            gp.set_XY(gp.X[:-1, :], gp.Y[:-1, :])
+
+        self._x = self._x[:-1, :]
+        self._y = self._y[:-1, :]
 
 
 class SafeOpt(GaussianProcessOptimization):
@@ -513,16 +578,16 @@ class SafeOpt(GaussianProcessOptimization):
                         continue
 
                     # Add safe point with its max possible value to the gp
-                    self.add_new_data_point(self.parameter_set[s, :][index, :],
-                                            u[s, i][index],
-                                            context=self.context,
-                                            gp=gp)
+                    self._add_data_point(gp=gp,
+                                         x=self.parameter_set[s, :][index, :],
+                                         y=u[s, i][index],
+                                         context=self.context)
 
                     # Prediction of previously unsafe points based on that
                     mean2, var2 = gp.predict_noiseless(self.inputs[~self.S])
 
                     # Remove the fake data point from the GP again
-                    self.remove_last_data_point(gp=gp)
+                    self._remove_last_data_point(gp=gp)
 
                     mean2 = mean2.squeeze()
                     var2 = var2.squeeze()
