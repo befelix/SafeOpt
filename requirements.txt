@@ -1,6 +1,6 @@
-GPy >= 0.8
-numpy >= 1.7
-scipy >= 0.12
-matplotlib >= 1.3
+GPy>=0.8
+numpy>=1.7,<2.0
+scipy>=0.12
+matplotlib>=1.3
 future
 
