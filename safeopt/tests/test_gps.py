@@ -10,7 +10,7 @@ from numpy.testing import assert_allclose
 from safeopt.gp_opt import GaussianProcessOptimization
 
 
-class TestGPs(object):
+class TestGPOptimization(object):
 
     @pytest.fixture
     def gps(self):
@@ -140,7 +140,3 @@ class TestGPs(object):
         for i, gp in enumerate(opt.gps):
             assert_allclose(gp.X, opt.x)
             assert_allclose(gp.Y[:, 0], opt.y[:, i])
-
-
-
-

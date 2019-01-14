@@ -1044,7 +1044,14 @@ class SafeOptSwarm(GaussianProcessOptimization):
         # Make sure the safe set is still safe
         _, safe = self._compute_particle_fitness('safe_set', self.S)
 
-        if not np.all(safe):
+        num_safe = safe.sum()
+        if num_safe == 0:
+            raise RuntimeError('The safe set is empty.')
+
+        # Prune safe set if points in the discrete approximation of the safe
+        # ended up being unsafe, but never prune below swarm size to avoid
+        # empty safe set.
+        if num_safe >= self.swarm_size and num_safe != len(safe):
             # Warn that the safe set has decreased
             logging.warning("Warning: {} unsafe points removed. "
                             "Model might be violated"
