@@ -17,17 +17,21 @@ RUN conda update conda --yes --quiet \
 # Source the anaconda environment
 ENV PATH /opt/conda/envs/safeopt/bin:$PATH
 
+# The following are useful for developtment, but not testing
 # Get the requirements files (seperate from the main body)
-COPY requirements.txt requirements.dev.txt /code/
+#COPY requirements.txt requirements.dev.txt /code/
 
 # Install requirements and clean up
-RUN pip --no-cache-dir install -r /code/requirements.txt \
-  && pip --no-cache-dir install -r /code/requirements.dev.txt \
-  && rm -rf /root/.cache
+#RUN pip --no-cache-dir install -r /code/requirements.txt \
+#  && pip --no-cache-dir install -r /code/requirements.dev.txt \
+#  && rm -rf /root/.cache
 
 # Copy the main code
 COPY . /code
-RUN cd /code && pip install -e .
+RUN cd /code \
+  && pip install --no-cache-dir -e . \
+  && pip --no-cache-dir install -r /code/requirements.dev.txt \
+  && rm -rf /root/.cache
 
 WORKDIR /code
 
