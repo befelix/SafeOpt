@@ -33,6 +33,9 @@ The prefered way of citing this code is by referring to [1] or [2].
   `Safe exploration for optimization with Gaussian processes <https://las.inf.ethz.ch/files/sui15icml-long.pdf>`_
   in Proc. of the International Conference on Machine Learning (ICML), 2015, pp. 997–1005.
 
+Warning: Maintenance mode
+-------------------------
+This package is no longer actively maintained. That bein said, pull requests to add functionality or fix bugs are always welcome.
 
 Installation
 ------------
