@@ -7,7 +7,12 @@ Authors: - Felix Berkenkamp (befelix at inf dot ethz dot ch)
 
 from __future__ import print_function, absolute_import, division
 
-from collections import Sequence
+try:
+    # for python < 3.10
+    from collections import Sequence
+except ImportError:
+    # for python >= 3.10
+    from collections.abc import Sequence
 from functools import partial
 
 import numpy as np
